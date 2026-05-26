@@ -9,6 +9,7 @@ import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import AuthModal from "./components/auth/AuthModal";
 import { useAuth } from "./context/AuthContext";
+import Payment from "./pages/Payment";
 
 function ProtectedRoute({ children }) {
   const { user, authLoading } = useAuth();
@@ -75,6 +76,15 @@ function App() {
           element={
             <ProtectedRoute>
               <Settings />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/payment"
+          element={
+            <ProtectedRoute>
+              <Payment />
             </ProtectedRoute>
           }
         />

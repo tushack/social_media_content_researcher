@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import {
   Bookmark,
   Clock,
@@ -54,6 +54,7 @@ const privateNavItems = [
 export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
   const { user, setAuthModalOpen, signOut } = useAuth();
   const [logoutModalOpen, setLogoutModalOpen] = useState(false);
+  const navigate = useNavigate();
 
   const navItems = user ? privateNavItems : publicNavItems;
 
@@ -65,9 +66,8 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
   return (
     <>
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-[82vw] max-w-72 flex-col border-r border-white/10 bg-[#0b0c11]/95 p-4 backdrop-blur-2xl transition-transform duration-300 sm:p-5 lg:w-72 lg:translate-x-0 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
+        className={`fixed inset-y-0 left-0 z-40 flex w-[82vw] max-w-72 flex-col border-r border-white/10 bg-[#0b0c11]/95 p-4 backdrop-blur-2xl transition-transform duration-300 sm:p-5 lg:w-72 lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
       >
         <div className="mb-7 flex items-center justify-between sm:mb-9">
           <div className="flex min-w-0 items-center gap-3">
@@ -101,10 +101,9 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
               to={item.path}
               onClick={() => setSidebarOpen(false)}
               className={({ isActive }) =>
-                `flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm transition ${
-                  isActive
-                    ? "bg-white/[0.08] text-white shadow-inner shadow-white/5"
-                    : "text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-100"
+                `flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm transition ${isActive
+                  ? "bg-white/[0.08] text-white shadow-inner shadow-white/5"
+                  : "text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-100"
                 }`
               }
             >
@@ -141,6 +140,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
             <div className="mt-4 space-y-2">
               <Button
                 type="button"
+                onClick={() => navigate("/payment")}
                 className="h-9 w-full rounded-2xl bg-white text-sm font-medium text-black hover:bg-zinc-200"
               >
                 Upgrade
