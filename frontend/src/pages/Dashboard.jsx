@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   BarChart3,
   Clipboard,
@@ -10,14 +10,14 @@ import {
   Flame,
   Loader2,
   Search,
+  Sparkles,
   TrendingUp,
 } from "lucide-react";
 
 import DashboardLayout from "../components/layout/DashboardLayout";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
-import { generateResearch, saveIdea } from "../lib/api";
-
+import { createContentPack, generateResearch, saveIdea } from "../lib/api";
 const CURRENT_RESEARCH_KEY = "viralMindCurrentResearch";
 
 const defaultTrendingTopics = [
@@ -167,10 +167,20 @@ function CopyButton({ text }) {
   );
 }
 
+function createSlugWords(text) {
+  return String(text || "")
+    .replace(/[^a-zA-Z0-9 ]/g, "")
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 4);
+}
+
+
 export default function Dashboard() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { requireAuth } = useAuth();
-
+  const [contentPackLoading, setContentPackLoading] = useState("");
   const [selectedPlatform, setSelectedPlatform] = useState("YouTube");
   const [selectedAudience, setSelectedAudience] = useState("New creators");
 
@@ -275,6 +285,8 @@ export default function Dashboard() {
     setApiData(null);
     setError("");
     setSavingText("");
+    setContentPackLoading("");
+
   };
 
   const handleSaveIdea = async ({ type, content, platform, niche }) => {
@@ -293,6 +305,37 @@ export default function Dashboard() {
       alert(err.message || "Failed to save idea");
     } finally {
       setSavingText("");
+    }
+  };
+
+  const handleGenerateContentPack = async (item) => {
+    if (!requireAuth()) {
+      return;
+    }
+
+    setContentPackLoading(item.topic);
+    setError("");
+
+    try {
+      const pack = await createContentPack({
+        topic: item.topic,
+        growth: item.growth,
+        competition: item.competition,
+        insight: item.insight,
+        niche: niche || item.niche || "AI Tools",
+        platform: selectedPlatform,
+        audience: selectedAudience,
+      });
+
+      navigate("/content-pack", {
+        state: {
+          contentPack: pack,
+        },
+      });
+    } catch (err) {
+      setError(err.message || "Failed to create content pack.");
+    } finally {
+      setContentPackLoading("");
     }
   };
 
@@ -475,10 +518,17 @@ export default function Dashboard() {
 
                   <Button
                     type="button"
+                    onClick={() => handleGenerateContentPack(item)}
+                    disabled={contentPackLoading === item.topic}
                     className="mt-6 h-12 w-full !rounded-full border border-cyan-300/20 bg-gradient-to-r from-cyan-300/15 to-violet-400/15 px-5 text-sm font-semibold text-cyan-100 shadow-inner shadow-white/5 hover:from-cyan-300/25 hover:to-violet-400/25"
                     style={{ borderRadius: "9999px" }}
                   >
-                    Trend Analysis
+                    {contentPackLoading === item.topic ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-4 w-4" />
+                    )}
+                    {contentPackLoading === item.topic ? "Creating..." : "Create Now"}
                   </Button>
 
                   <Button

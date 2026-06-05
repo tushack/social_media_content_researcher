@@ -458,10 +458,10 @@ function isVideoItem(item) {
 
   return Boolean(
     item?.title ||
-      item?.videoTitle ||
-      item?.videoUrl ||
-      item?.watchUrl ||
-      item?.videoLink
+    item?.videoTitle ||
+    item?.videoUrl ||
+    item?.watchUrl ||
+    item?.videoLink
   );
 }
 
@@ -682,7 +682,259 @@ async function analyzeCompetitorChannelResult({ channelUrl }) {
   };
 }
 
+function cleanString(value, fallback = "") {
+  if (value === undefined || value === null) return fallback;
+  const text = String(value).trim();
+  return text || fallback;
+}
+
+function limitText(text, length) {
+  const value = cleanString(text);
+  if (value.length <= length) return value;
+  return `${value.slice(0, length).trim()}...`;
+}
+
+function createSlugWords(text, maxWords = 5) {
+  return cleanString(text)
+    .replace(/[^a-zA-Z0-9 ]/g, "")
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, maxWords);
+}
+
+function getContentPackAngle(competition) {
+  const value = cleanString(competition, "Medium").toLowerCase();
+
+  if (value === "low") {
+    return {
+      title: "Low Competition Opportunity",
+      thumbnailHeadline: "LOW COMPETITION",
+      posterTitle: "Create This Before Everyone Finds It",
+      hookPrefix: "Most creators are still ignoring this topic",
+      badgeColorText: "Low Competition",
+      urgency: "early-mover",
+    };
+  }
+
+  if (value === "high") {
+    return {
+      title: "High Demand Topic",
+      thumbnailHeadline: "TRENDING NOW",
+      posterTitle: "This Topic Is Already Exploding",
+      hookPrefix: "This topic is already getting attention",
+      badgeColorText: "High Demand",
+      urgency: "high-demand",
+    };
+  }
+
+  return {
+    title: "Fast Growing Topic",
+    thumbnailHeadline: "VIRAL IDEA",
+    posterTitle: "This Idea Can Grow Fast",
+    hookPrefix: "This topic is gaining momentum",
+    badgeColorText: "Growing Fast",
+    urgency: "fast-growth",
+  };
+}
+
+function buildContentPack({ topic, growth, competition, insight, niche, platform, audience }) {
+  const cleanTopic = cleanString(topic, "Viral YouTube Topic");
+  const cleanGrowth = cleanString(growth, "+72%");
+  const cleanCompetition = cleanString(competition, "Medium");
+  const cleanInsight = cleanString(
+    insight,
+    "This topic has strong creator demand and can perform well with the right content angle."
+  );
+  const cleanNiche = cleanString(niche, "content creators");
+  const cleanPlatform = cleanString(platform, "YouTube");
+  const cleanAudience = cleanString(audience, "New creators");
+
+  const angle = getContentPackAngle(cleanCompetition);
+  const shortTopic = limitText(cleanTopic, 46);
+  const thumbnailTopic = limitText(cleanTopic, 36);
+  const lowerCompetition = cleanCompetition.toLowerCase();
+  const hashtagWords = createSlugWords(cleanTopic, 5);
+
+  return {
+    topic: cleanTopic,
+    growth: cleanGrowth,
+    competition: cleanCompetition,
+    insight: cleanInsight,
+    niche: cleanNiche,
+    platform: cleanPlatform,
+    audience: cleanAudience,
+
+    angle: angle.title,
+    videoTitle: `I Found a ${angle.title} for ${cleanPlatform}: "${shortTopic}"`,
+
+    thumbnailHeadline: angle.thumbnailHeadline,
+    thumbnailMainText: thumbnailTopic,
+    thumbnailSubText: `${cleanGrowth} growth • ${cleanCompetition} competition`,
+    thumbnailBadge: angle.badgeColorText,
+
+    posterTitle: angle.posterTitle,
+    posterSubtitle: `${shortTopic} is showing ${cleanGrowth} growth with ${lowerCompetition} competition for ${cleanAudience.toLowerCase()} on ${cleanPlatform}.`,
+    posterMainText: shortTopic,
+    posterBadge: `${cleanGrowth} Growth • ${cleanCompetition} Competition`,
+
+    hook: `${angle.hookPrefix}: "${cleanTopic}". It is showing ${cleanGrowth} growth with ${lowerCompetition} competition, which makes it a strong opportunity for ${cleanAudience.toLowerCase()}.`,
+
+    introScript: `In this video, I am going to break down "${cleanTopic}" and explain why it is becoming a strong ${cleanPlatform} content opportunity. This topic is showing ${cleanGrowth} growth with ${lowerCompetition} competition. The key insight is: ${cleanInsight}`,
+
+    talkingPoints: [
+      `Trend signal: "${cleanTopic}" is showing ${cleanGrowth} growth right now.`,
+      `Competition level is ${cleanCompetition}, so the content angle needs to be clear and specific.`,
+      `Audience fit: this topic can work well for ${cleanAudience.toLowerCase()}.`,
+      `Main insight: ${cleanInsight}`,
+      `Best execution: use a strong hook, simple explanation, and a practical example for ${cleanPlatform}.`,
+    ],
+
+    cta: `If you want more ${cleanNiche} ideas like this, save this video and follow for more ${cleanPlatform} growth strategies.`,
+
+    description: `In this video, we explore "${cleanTopic}" and why it is becoming a strong content opportunity for ${cleanAudience.toLowerCase()} on ${cleanPlatform}.\n\nThis topic is showing ${cleanGrowth} growth with ${lowerCompetition} competition.\n\nKey insight: ${cleanInsight}`,
+
+    tags: [
+      cleanTopic,
+      cleanNiche,
+      cleanPlatform,
+      cleanAudience,
+      `${cleanPlatform} growth`,
+      `${cleanNiche} ideas`,
+      "viral video ideas",
+      "content strategy",
+      "creator tips",
+      "trend analysis",
+    ],
+
+    hashtags: [
+      ...hashtagWords.map((word) => `#${word}`),
+      "#YouTubeGrowth",
+      "#ContentCreator",
+      "#ViralIdeas",
+      "#ContentStrategy",
+    ],
+
+    pinnedComment: `Would you create a video on "${cleanTopic}"? Comment your angle below.`,
+    generatedAt: new Date().toISOString(),
+    source: "backend-dynamic",
+  };
+}
+
+async function createContentPackResult(payload) {
+  const topic = cleanString(payload?.topic);
+
+  if (!topic) {
+    throw new Error("Topic is required to create a content pack");
+  }
+
+  return buildContentPack(payload || {});
+}
+
+function buildThumbnailGenerationPrompt({ pack, prompt, variant = 1 }) {
+  const topic = cleanString(pack?.topic, "Viral YouTube Topic");
+  const extraPrompt = cleanString(prompt, "");
+
+  const styles = [
+    "cinematic blue and violet tech creator look with dramatic glow",
+    "premium YouTube growth dashboard look with analytics and arrows",
+    "clean high-contrast creator studio look with neon accents",
+    "modern AI research look with abstract data waves and creator strategy mood",
+  ];
+
+  const visualStyle = styles[(Number(variant || 1) - 1) % styles.length];
+
+  return [
+    `Generate a professional 16:9 YouTube banner/thumbnail background image for this topic: ${topic}.`,
+    `Style: ${visualStyle}.`,
+    "Important: Do not add any text, words, letters, numbers, captions, subtitles, labels, logo, watermark, signature, UI text, fake text, or readable typography inside the image.",
+    "Create only a clean visual background with strong composition, premium lighting, modern creator-economy design, abstract visuals, charts without numbers, glow effects, and enough empty space.",
+    "The image should work as a banner background where text can be added later by the frontend/editor.",
+    extraPrompt ? `User extra direction: ${extraPrompt}. Do not include text in the image.` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+async function generateThumbnailResult({ pack, prompt, variant }) {
+  if (!process.env.HF_TOKEN) {
+    throw new Error("HF_TOKEN is not configured on the backend");
+  }
+
+  const finalPrompt = buildThumbnailGenerationPrompt({
+    pack,
+    prompt,
+    variant,
+  });
+
+  const model =
+    process.env.HF_IMAGE_MODEL || "ideogram-ai/ideogram-4-fp8";
+
+  const response = await fetch(
+    `${process.env.HF_BASE_URL || "https://router.huggingface.co/hf-inference/models"}/${model}`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.HF_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        inputs: finalPrompt,
+        parameters: {
+          width: 1536,
+          height: 864,
+        },
+      }),
+    }
+  );
+
+  const contentType = response.headers.get("content-type") || "";
+  const buffer = await response.arrayBuffer();
+
+  if (!response.ok) {
+    const errorText = Buffer.from(buffer).toString("utf8");
+
+    let errorMessage = "Failed to generate AI thumbnail";
+
+    try {
+      const parsedError = JSON.parse(errorText);
+      errorMessage =
+        parsedError.error ||
+        parsedError.message ||
+        errorMessage;
+    } catch {
+      errorMessage = errorText || errorMessage;
+    }
+
+    throw new Error(errorMessage);
+  }
+
+  if (contentType.includes("application/json")) {
+    const jsonText = Buffer.from(buffer).toString("utf8");
+    const data = JSON.parse(jsonText);
+
+    if (data.error) {
+      throw new Error(data.error);
+    }
+
+    throw new Error("Hugging Face did not return image data");
+  }
+
+  const imageBase64 = Buffer.from(buffer).toString("base64");
+
+  return {
+    imageBase64,
+    imageUrl: `data:image/png;base64,${imageBase64}`,
+    prompt: finalPrompt,
+    model,
+    size: "1536x864",
+    outputFormat: "png",
+    generatedAt: new Date().toISOString(),
+  };
+}
+
 module.exports = {
   createResearchResult,
   analyzeCompetitorChannelResult,
+  createContentPackResult,
+  generateThumbnailResult,
 };

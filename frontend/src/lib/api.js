@@ -91,3 +91,39 @@ export async function analyzeCompetitorChannel(payload) {
 
   return data;
 }
+
+export async function createContentPack(payload) {
+  const response = await fetch(`${API_BASE_URL}/research/content-pack`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || "Failed to create content pack");
+  }
+
+  return data;
+}
+
+export async function generateAiThumbnail(payload) {
+  const response = await fetch(`${API_BASE_URL}/research/thumbnail`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || "Failed to generate AI thumbnail");
+  }
+
+  return data;
+}

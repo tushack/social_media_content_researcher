@@ -1,6 +1,8 @@
 const {
   createResearchResult,
   analyzeCompetitorChannelResult,
+  createContentPackResult,
+  generateThumbnailResult,
 } = require("../services/research.service");
 
 const {
@@ -71,8 +73,49 @@ async function analyzeCompetitorChannel(req, res) {
   }
 }
 
+async function createContentPack(req, res) {
+  try {
+    const result = await createContentPackResult(req.body || {});
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error("Create content pack error:", error);
+
+    return res.status(500).json({
+      message: error.message || "Failed to create content pack",
+    });
+  }
+}
+
+async function generateThumbnail(req, res) {
+  try {
+    const { pack, prompt, variant } = req.body || {};
+
+    if (!pack || !pack.topic) {
+      return res.status(400).json({
+        message: "Content pack with topic is required",
+      });
+    }
+
+    const result = await generateThumbnailResult({
+      pack,
+      prompt,
+      variant,
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error("Generate thumbnail error:", error);
+
+    return res.status(500).json({
+      message: error.message || "Failed to generate AI thumbnail",
+    });
+  }
+}
+
 module.exports = {
   generateResearch,
   getResearchHistory,
   analyzeCompetitorChannel,
+  createContentPack,
+  generateThumbnail,
 };

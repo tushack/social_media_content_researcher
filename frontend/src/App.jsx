@@ -10,6 +10,7 @@ import NotFound from "./pages/NotFound";
 import AuthModal from "./components/auth/AuthModal";
 import { useAuth } from "./context/AuthContext";
 import Payment from "./pages/Payment";
+import ContentPack from "./pages/ContentPack";
 
 function ProtectedRoute({ children }) {
   const { user, authLoading } = useAuth();
@@ -85,6 +86,15 @@ function App() {
           element={
             <ProtectedRoute>
               <Payment />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/content-pack"
+          element={
+            <ProtectedRoute>
+              <ContentPack />
             </ProtectedRoute>
           }
         />
