@@ -9,10 +9,14 @@ const {
   generateThumbnail,
 } = require("../controllers/research.controller");
 
-router.post("/generate", generateResearch);
-router.get("/history", getResearchHistory);
-router.post("/analyze-channel", analyzeCompetitorChannel);
-router.post("/content-pack", createContentPack);
-router.post("/thumbnail", generateThumbnail);
+const {
+  requireFirebaseAuth,
+} = require("../middlewares/auth.middleware");
+
+router.post("/generate", requireFirebaseAuth, generateResearch);
+router.get("/history", requireFirebaseAuth, getResearchHistory);
+router.post("/analyze-channel", requireFirebaseAuth, analyzeCompetitorChannel);
+router.post("/content-pack", requireFirebaseAuth, createContentPack);
+router.post("/thumbnail", requireFirebaseAuth, generateThumbnail);
 
 module.exports = router;

@@ -23,6 +23,7 @@ async function generateResearch(req, res) {
       niche,
       platform,
       audience,
+      userId: req.user.uid,
     });
 
     return res.status(200).json(result);
@@ -37,7 +38,7 @@ async function generateResearch(req, res) {
 
 async function getResearchHistory(req, res) {
   try {
-    const data = await getResearchHistoryService();
+    const data = await getResearchHistoryService(req.user.uid);
 
     return res.status(200).json(data);
   } catch (error) {
@@ -61,6 +62,7 @@ async function analyzeCompetitorChannel(req, res) {
 
     const result = await analyzeCompetitorChannelResult({
       channelUrl,
+      userId: req.user.uid,
     });
 
     return res.status(200).json(result);

@@ -1,11 +1,25 @@
+import { auth } from "./firebase";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+async function getAuthHeaders() {
+  const currentUser = auth.currentUser;
+
+  if (!currentUser) {
+    throw new Error("Please login first.");
+  }
+
+  const token = await currentUser.getIdToken();
+
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  };
+}
 
 export async function generateResearch(payload) {
   const response = await fetch(`${API_BASE_URL}/research/generate`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: await getAuthHeaders(),
     body: JSON.stringify(payload),
   });
 
@@ -19,8 +33,9 @@ export async function generateResearch(payload) {
 }
 
 export async function getSavedIdeas() {
-  const response = await fetch(`${API_BASE_URL}/saved-ideas`);
-
+  const response = await fetch(`${API_BASE_URL}/saved-ideas`, {
+    headers: await getAuthHeaders(),
+  });
   const data = await response.json();
 
   if (!response.ok) {
@@ -33,9 +48,7 @@ export async function getSavedIdeas() {
 export async function saveIdea(payload) {
   const response = await fetch(`${API_BASE_URL}/saved-ideas`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: await getAuthHeaders(),
     body: JSON.stringify(payload),
   });
 
@@ -51,6 +64,7 @@ export async function saveIdea(payload) {
 export async function deleteSavedIdea(id) {
   const response = await fetch(`${API_BASE_URL}/saved-ideas/${id}`, {
     method: "DELETE",
+    headers: await getAuthHeaders(),
   });
 
   const data = await response.json();
@@ -63,8 +77,9 @@ export async function deleteSavedIdea(id) {
 }
 
 export async function getResearchHistory() {
-  const response = await fetch(`${API_BASE_URL}/research/history`);
-
+  const response = await fetch(`${API_BASE_URL}/research/history`, {
+    headers: await getAuthHeaders(),
+  });
   const data = await response.json();
 
   if (!response.ok) {
@@ -77,9 +92,7 @@ export async function getResearchHistory() {
 export async function analyzeCompetitorChannel(payload) {
   const response = await fetch(`${API_BASE_URL}/research/analyze-channel`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: await getAuthHeaders(),
     body: JSON.stringify(payload),
   });
 
@@ -95,9 +108,7 @@ export async function analyzeCompetitorChannel(payload) {
 export async function createContentPack(payload) {
   const response = await fetch(`${API_BASE_URL}/research/content-pack`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: await getAuthHeaders(),
     body: JSON.stringify(payload),
   });
 
@@ -113,9 +124,7 @@ export async function createContentPack(payload) {
 export async function generateAiThumbnail(payload) {
   const response = await fetch(`${API_BASE_URL}/research/thumbnail`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: await getAuthHeaders(),
     body: JSON.stringify(payload),
   });
 

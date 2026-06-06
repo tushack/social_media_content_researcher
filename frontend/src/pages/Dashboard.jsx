@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   BarChart3,
+  Check,
+  ChevronDown,
   Clipboard,
   Compass,
   Copy,
@@ -164,6 +166,92 @@ function CopyButton({ text }) {
       <Copy className="h-3.5 w-3.5" />
       {copied ? "Copied" : "Copy"}
     </Button>
+  );
+}
+
+function PrettySelect({ value, onChange, options, label }) {
+  const [open, setOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handleClickOutside = (event) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target)
+      ) {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [open]);
+
+  return (
+    <div
+      ref={dropdownRef}
+      className={`relative h-14 min-w-0 ${open ? "z-[9999]" : "z-10"}`}
+    >      <button
+      type="button"
+      onClick={() => setOpen((current) => !current)}
+      className={`flex h-14 w-full min-w-0 items-center justify-between gap-3 rounded-2xl border px-4 text-left text-sm outline-none transition ${open
+        ? "border-cyan-300/40 bg-cyan-300/[0.08] shadow-lg shadow-cyan-950/30"
+        : "border-white/10 bg-white/[0.05] hover:border-white/20 hover:bg-white/[0.08]"
+        }`}
+    >
+        <div className="min-w-0">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+            {label}
+          </p>
+
+          <p className="mt-0.5 truncate font-medium text-white">
+            {value}
+          </p>
+        </div>
+
+        <div
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-black/25 transition ${open ? "rotate-180 text-cyan-200" : "text-zinc-400"
+            }`}
+        >
+          <ChevronDown className="h-4 w-4" />
+        </div>
+      </button>
+
+      {open && (
+        <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-[9999] overflow-hidden rounded-2xl border border-cyan-300/20 bg-[#050711]/95 p-1 shadow-2xl shadow-black/80 backdrop-blur-2xl">          {options.map((option) => {
+          const isSelected = option === value;
+
+          return (
+            <button
+              key={option}
+              type="button"
+              onClick={() => {
+                onChange(option);
+                setOpen(false);
+              }}
+              className={`flex h-11 w-full items-center justify-between gap-3 rounded-xl px-3 text-left text-sm transition ${isSelected
+                ? "bg-cyan-300/15 text-cyan-100"
+                : "text-zinc-300 hover:bg-white/[0.07] hover:text-white"
+                }`}
+            >
+              <span className="truncate">{option}</span>
+
+              {isSelected && (
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-cyan-300 text-black">
+                  <Check className="h-3.5 w-3.5" />
+                </span>
+              )}
+            </button>
+          );
+        })}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -349,8 +437,7 @@ export default function Dashboard() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.045] shadow-2xl shadow-black/30 backdrop-blur-xl sm:rounded-[2rem]"
-      >
+        className="relative z-50 overflow-visible rounded-[1.5rem] border border-white/10 bg-white/[0.045] shadow-2xl shadow-black/30 backdrop-blur-xl sm:rounded-[2rem]"      >
         <div className="relative p-5 sm:p-8 lg:p-10">
           <div className="absolute right-8 top-8 hidden rounded-full border border-cyan-300/20 bg-cyan-300/10 px-4 py-2 text-sm text-cyan-200 xl:block">
             Live trend engine active
@@ -374,42 +461,35 @@ export default function Dashboard() {
             </p>
           </div>
 
-          <div className="mt-7 grid w-full gap-3 rounded-3xl border border-white/10 bg-black/25 p-3 sm:mt-8 md:grid-cols-2 xl:grid-cols-[minmax(260px,1.4fr)_minmax(160px,0.8fr)_minmax(160px,0.8fr)_auto]">
-            <label className="flex h-14 min-w-0 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.05] px-4 md:col-span-2 xl:col-span-1">
-              <Search className="h-5 w-5 shrink-0 text-zinc-500" />
+          <div className="relative z-[999] mt-7 grid w-full gap-3 rounded-3xl border border-white/10 bg-black/25 p-3 sm:mt-8 md:grid-cols-2 xl:grid-cols-[minmax(260px,1.4fr)_minmax(160px,0.8fr)_minmax(160px,0.8fr)_auto]">                      <label className="flex h-14 min-w-0 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.05] px-4 md:col-span-2 xl:col-span-1">
+            <Search className="h-5 w-5 shrink-0 text-zinc-500" />
 
-              <input
-                value={niche}
-                onChange={(e) => setNiche(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    handleFindIdeas();
-                  }
-                }}
-                placeholder="Enter niche, e.g. AI tools"
-                className="w-full min-w-0 bg-transparent text-sm text-white outline-none placeholder:text-zinc-600"
-              />
-            </label>
+            <input
+              value={niche}
+              onChange={(e) => setNiche(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleFindIdeas();
+                }
+              }}
+              placeholder="Enter niche, e.g. AI tools"
+              className="w-full min-w-0 bg-transparent text-sm text-white outline-none placeholder:text-zinc-600"
+            />
+          </label>
 
-            <select
+            <PrettySelect
+              label="Platform"
               value={selectedPlatform}
-              onChange={(e) => setSelectedPlatform(e.target.value)}
-              className="h-14 w-full min-w-0 rounded-2xl border border-white/10 bg-[#17181f] px-4 text-sm text-white outline-none"
-            >
-              <option className="bg-zinc-950">YouTube</option>
-              <option className="bg-zinc-950">YouTube Shorts</option>
-            </select>
+              onChange={setSelectedPlatform}
+              options={["YouTube", "YouTube Shorts"]}
+            />
 
-            <select
+            <PrettySelect
+              label="Audience"
               value={selectedAudience}
-              onChange={(e) => setSelectedAudience(e.target.value)}
-              className="h-14 w-full min-w-0 rounded-2xl border border-white/10 bg-[#17181f] px-4 text-sm text-white outline-none"
-            >
-              <option className="bg-zinc-950">New creators</option>
-              <option className="bg-zinc-950">Startup founders</option>
-              <option className="bg-zinc-950">Students</option>
-              <option className="bg-zinc-950">Marketers</option>
-            </select>
+              onChange={setSelectedAudience}
+              options={["New creators", "Startup founders", "Students", "Marketers"]}
+            />
 
             <Button
               type="button"
@@ -436,7 +516,7 @@ export default function Dashboard() {
         </div>
       </motion.section>
 
-      <section className="mt-5 grid gap-4 sm:mt-6 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="relative z-0 mt-5 grid gap-4 sm:mt-6 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           icon={Compass}
           label="Ideas Found"

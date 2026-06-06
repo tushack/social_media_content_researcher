@@ -13,7 +13,13 @@ import {
   Sparkles,
   TrendingUp,
   Wand2,
+  X,
 } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
+import {
+  getSavedThumbnailsByTopic,
+  saveGeneratedThumbnail,
+} from "../lib/thumbnailStore";
 import { generateAiThumbnail } from "../lib/api";
 import { useLocation, useNavigate } from "react-router-dom";
 
@@ -279,60 +285,6 @@ function ThumbnailPreview({ pack, imageUrl, loading = false }) {
     </div>
   );
 }
-function PosterPreview({ pack }) {
-  return (
-    <div className="relative min-h-[560px] overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-[#020617] via-[#111827] to-[#312e81] p-6 shadow-2xl shadow-violet-950/40">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.25),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(168,85,247,0.25),transparent_40%)]" />
-
-      <div className="relative z-10 flex min-h-[510px] flex-col justify-between">
-        <div>
-          <div className="mb-6 inline-flex rounded-full border border-cyan-300/20 bg-cyan-300/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-cyan-100">
-            {pack.posterBadge}
-          </div>
-
-          <h3 className="text-4xl font-black uppercase leading-tight tracking-tight text-white sm:text-5xl">
-            {pack.posterTitle}
-          </h3>
-
-          <div className="mt-6 rounded-[1.5rem] border border-white/10 bg-white/[0.06] p-4">
-            <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">
-              Topic
-            </p>
-
-            <p className="mt-2 text-2xl font-black uppercase leading-tight text-white">
-              {pack.posterMainText}
-            </p>
-          </div>
-
-          <p className="mt-5 text-base leading-7 text-zinc-300">
-            {pack.posterSubtitle}
-          </p>
-        </div>
-
-        <div className="rounded-[1.5rem] border border-white/10 bg-black/25 p-5 backdrop-blur-md">
-          <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
-            Hook
-          </p>
-
-          <p className="mt-2 text-xl font-semibold leading-8 text-white">
-            {pack.hook}
-          </p>
-        </div>
-
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-semibold text-white">ViralMind</p>
-            <p className="text-xs text-zinc-500">AI YouTube Research</p>
-          </div>
-
-          <div className="rounded-full bg-white px-4 py-2 text-xs font-bold text-black">
-            Create Now
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function ContentPack() {
   const navigate = useNavigate();
@@ -348,6 +300,40 @@ export default function ContentPack() {
   const [thumbnailPrompt, setThumbnailPrompt] = React.useState("");
 
   const activeThumbnail = aiThumbnails[0] || null;
+  const { user } = useAuth();
+
+  const [savedThumbnails, setSavedThumbnails] = React.useState([]);
+  const [savedThumbnailsLoading, setSavedThumbnailsLoading] = React.useState(false);
+  const [fullscreenImage, setFullscreenImage] = React.useState("");
+  const [thumbnailSaveStatus, setThumbnailSaveStatus] = React.useState("");
+  const [thumbnailSaveError, setThumbnailSaveError] = React.useState("");
+  const [savingThumbnailId, setSavingThumbnailId] = React.useState("");
+
+  const loadSavedThumbnails = React.useCallback(async () => {
+    if (!user?.uid || !pack?.topic) {
+      setSavedThumbnails([]);
+      return;
+    }
+
+    try {
+      setSavedThumbnailsLoading(true);
+
+      const items = await getSavedThumbnailsByTopic({
+        userId: user.uid,
+        topic: pack.topic,
+      });
+
+      setSavedThumbnails(items);
+    } catch (error) {
+      console.error("Load saved thumbnails error:", error);
+    } finally {
+      setSavedThumbnailsLoading(false);
+    }
+  }, [user?.uid, pack?.topic]);
+
+  React.useEffect(() => {
+    loadSavedThumbnails();
+  }, [loadSavedThumbnails]);
 
   const handleGenerateThumbnail = React.useCallback(
     async ({ auto = false } = {}) => {
@@ -357,6 +343,8 @@ export default function ContentPack() {
 
       setThumbnailLoading(true);
       setThumbnailError("");
+      setThumbnailSaveStatus("");
+      setThumbnailSaveError("");
 
       try {
         const result = await generateAiThumbnail({
@@ -365,14 +353,83 @@ export default function ContentPack() {
           variant: aiThumbnails.length + 1,
         });
 
-        setAiThumbnails((current) => [result, ...current].slice(0, 6));
+        const generatedThumbnail = {
+          ...result,
+          localId: `${Date.now()}-${aiThumbnails.length + 1}`,
+          isSaved: false,
+        };
+
+        setAiThumbnails((current) => [generatedThumbnail, ...current].slice(0, 6));
       } catch (err) {
-        setThumbnailError(err.message || "AI thumbnail generate nahi ho paaya.");
+        setThumbnailError(err.message || "Could not generate a thumbnail.");
       } finally {
         setThumbnailLoading(false);
       }
     },
     [aiThumbnails.length, pack, thumbnailLoading, thumbnailPrompt]
+  );
+
+  const handleSaveThumbnail = React.useCallback(
+    async (thumbnail) => {
+      if (!user?.uid) {
+        setThumbnailSaveError("Please login first to save thumbnail.");
+        return;
+      }
+
+      if (!pack || !thumbnail?.imageUrl) {
+        setThumbnailSaveError("Thumbnail image not found.");
+        return;
+      }
+
+      if (thumbnail.isSaved) {
+        setThumbnailSaveStatus("This thumbnail is already saved.");
+        return;
+      }
+
+      try {
+        const saveId = thumbnail.localId || thumbnail.generatedAt || thumbnail.imageUrl;
+
+        setSavingThumbnailId(saveId);
+        setThumbnailSaveStatus("Saving selected image to Cloudinary and Firestore...");
+        setThumbnailSaveError("");
+
+        const savedItem = await saveGeneratedThumbnail({
+          userId: user.uid,
+          topic: pack.topic,
+          imageDataUrl: thumbnail.imageUrl,
+          prompt: thumbnailPrompt || "",
+          model: thumbnail.model || "",
+          videoTitle: pack.videoTitle || "",
+        });
+
+        setSavedThumbnails((current) => [savedItem, ...current]);
+
+        setAiThumbnails((current) =>
+          current.map((item) =>
+            item.imageUrl === thumbnail.imageUrl
+              ? {
+                ...item,
+                isSaved: true,
+                savedId: savedItem.id,
+              }
+              : item
+          )
+        );
+
+        setThumbnailSaveStatus("Selected thumbnail saved successfully.");
+      } catch (saveError) {
+        console.error("Save thumbnail error:", saveError);
+
+        setThumbnailSaveStatus("");
+        setThumbnailSaveError(
+          saveError.message ||
+          "Thumbnail Cloudinary/Firestore me save nahi hua."
+        );
+      } finally {
+        setSavingThumbnailId("");
+      }
+    },
+    [pack, thumbnailPrompt, user?.uid]
   );
 
   React.useEffect(() => {
@@ -551,7 +608,6 @@ export default function ContentPack() {
                     {thumbnailError}
                   </p>
                 )}
-
                 <div className="mt-4 flex flex-col gap-3 sm:flex-row">
                   <Button
                     type="button"
@@ -569,6 +625,30 @@ export default function ContentPack() {
 
                   <Button
                     type="button"
+                    onClick={() => handleSaveThumbnail(activeThumbnail)}
+                    disabled={
+                      !activeThumbnail?.imageUrl ||
+                      activeThumbnail?.isSaved ||
+                      savingThumbnailId ===
+                      (activeThumbnail?.localId ||
+                        activeThumbnail?.generatedAt ||
+                        activeThumbnail?.imageUrl)
+                    }
+                    className="h-11 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-5 text-sm font-semibold text-emerald-200 hover:bg-emerald-400/20 sm:w-fit"
+                  >
+                    {savingThumbnailId ===
+                      (activeThumbnail?.localId ||
+                        activeThumbnail?.generatedAt ||
+                        activeThumbnail?.imageUrl) ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-4 w-4" />
+                    )}
+                    {activeThumbnail?.isSaved ? "Saved" : "Save Thumbnail"}
+                  </Button>
+
+                  <Button
+                    type="button"
                     onClick={handleDownloadThumbnail}
                     disabled={!activeThumbnail?.imageUrl}
                     className="h-11 rounded-full border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-zinc-200 hover:bg-white/[0.1] sm:w-fit"
@@ -578,32 +658,69 @@ export default function ContentPack() {
                   </Button>
                 </div>
               </div>
+              {thumbnailSaveStatus && (
+                <p className="mt-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-xs leading-6 text-emerald-200">
+                  {thumbnailSaveStatus}
+                </p>
+              )}
+
+              {thumbnailSaveError && (
+                <p className="mt-3 rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-xs leading-6 text-red-200">
+                  {thumbnailSaveError}
+                </p>
+              )}
 
               {aiThumbnails.length > 1 && (
                 <div className="grid gap-3 sm:grid-cols-2">
-                  {aiThumbnails.map((thumbnail, index) => (
-                    <button
-                      key={`${thumbnail.generatedAt}-${index}`}
-                      type="button"
-                      onClick={() =>
-                        setAiThumbnails((current) => [
-                          thumbnail,
-                          ...current.filter((item) => item !== thumbnail),
-                        ])
-                      }
-                      className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-2 text-left transition hover:border-cyan-300/30"
-                    >
-                      <img
-                        src={thumbnail.imageUrl}
-                        alt={`AI thumbnail variant ${index + 1}`}
-                        className="aspect-video w-full rounded-xl object-cover"
-                      />
+                  {aiThumbnails.map((thumbnail, index) => {
+                    const itemSaveId =
+                      thumbnail.localId || thumbnail.generatedAt || thumbnail.imageUrl;
 
-                      <p className="mt-2 px-1 text-xs text-zinc-500">
-                        Variant {index + 1}
-                      </p>
-                    </button>
-                  ))}
+                    return (
+                      <div
+                        key={`${itemSaveId}-${index}`}
+                        className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-2 text-left transition hover:border-cyan-300/30"
+                      >
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setAiThumbnails((current) => [
+                              thumbnail,
+                              ...current.filter((item) => item !== thumbnail),
+                            ])
+                          }
+                          className="block w-full overflow-hidden rounded-xl"
+                        >
+                          <img
+                            src={thumbnail.imageUrl}
+                            alt={`AI thumbnail variant ${index + 1}`}
+                            className="aspect-video w-full rounded-xl object-cover"
+                          />
+                        </button>
+
+                        <div className="mt-2 flex items-center justify-between gap-2 px-1">
+                          <p className="text-xs text-zinc-500">
+                            Variant {index + 1}
+                          </p>
+
+                          <button
+                            type="button"
+                            onClick={() => handleSaveThumbnail(thumbnail)}
+                            disabled={
+                              thumbnail.isSaved || savingThumbnailId === itemSaveId
+                            }
+                            className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {savingThumbnailId === itemSaveId
+                              ? "Saving..."
+                              : thumbnail.isSaved
+                                ? "Saved"
+                                : "Save"}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -699,7 +816,73 @@ export default function ContentPack() {
 
         <div className="space-y-5 xl:sticky xl:top-24 xl:self-start">
           <SectionCard icon={Image} title="Poster Picture">
-            <PosterPreview pack={pack} />
+            <div className="space-y-4">
+              {savedThumbnailsLoading ? (
+                <div className="flex min-h-[240px] items-center justify-center rounded-[2rem] border border-white/10 bg-white/[0.04]">
+                  <div className="flex items-center gap-3 text-sm text-zinc-400">
+                    <Loader2 className="h-5 w-5 animate-spin text-cyan-300" />
+                    Loading saved images...
+                  </div>
+                </div>
+              ) : savedThumbnails.length === 0 ? (
+                <div className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 text-center">
+                  <h3 className="text-base font-semibold text-white">
+                    No saved images found
+                  </h3>
+
+                  <p className="mt-2 text-sm text-zinc-500">
+                    Save a thumbnail and it will show here.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="grid gap-3">
+                    {savedThumbnails.slice(0, 5).map((item, index) => (
+                      <button
+                        key={item.id || index}
+                        type="button"
+                        onClick={() => setFullscreenImage(item.imageUrl)}
+                        className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-2 text-left transition hover:border-cyan-300/30"
+                      >
+                        <img
+                          src={item.imageUrl}
+                          alt={`Saved thumbnail ${index + 1}`}
+                          className="aspect-video w-full rounded-xl object-cover"
+                        />
+
+                        <div className="mt-2 flex items-center justify-between gap-2 px-1">
+                          <p className="text-xs text-zinc-500">
+                            {index === 0
+                              ? "Latest saved image"
+                              : `Saved image ${index + 1}`}
+                          </p>
+
+                          <p className="text-xs text-cyan-300">Open</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  {savedThumbnails.length > 5 && (
+                    <Button
+                      type="button"
+                      onClick={() =>
+                        navigate(
+                          `/saved-thumbnails?topic=${encodeURIComponent(pack.topic)}`
+                        )
+                      }
+                      className="h-11 w-full rounded-full bg-cyan-300 px-5 text-sm font-semibold text-black hover:bg-cyan-200"
+                    >
+                      View All Saved Images ({savedThumbnails.length})
+                    </Button>
+                  )}
+
+                  <p className="text-xs text-zinc-500">
+                    Click any saved image to open full screen.
+                  </p>
+                </>
+              )}
+            </div>
           </SectionCard>
 
           <Card className="border-cyan-300/15 bg-cyan-300/[0.04]">
@@ -716,6 +899,31 @@ export default function ContentPack() {
           </Card>
         </div>
       </section>
+      {fullscreenImage && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4"
+          onClick={() => setFullscreenImage("")}
+        >
+          <button
+            type="button"
+            onClick={() => setFullscreenImage("")}
+            className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white backdrop-blur-md hover:bg-white/20"
+          >
+            <X className="h-5 w-5" />
+          </button>
+
+          <div
+            className="max-h-[92vh] max-w-[96vw] overflow-hidden rounded-3xl border border-white/10 bg-black"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={fullscreenImage}
+              alt="Full screen thumbnail preview"
+              className="max-h-[92vh] max-w-[96vw] object-contain"
+            />
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

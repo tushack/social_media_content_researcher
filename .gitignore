@@ -10,7 +10,7 @@ node_modules/
 backend/.env
 frontend/.env
 node_modules/
-
+social-content-researcher-firebase-adminsdk-fbsvc-a77a1c0ecc.json
 # Logs
 logs
 *.log

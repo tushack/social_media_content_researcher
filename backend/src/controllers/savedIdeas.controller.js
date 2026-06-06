@@ -15,6 +15,7 @@ async function createSavedIdea(req, res) {
     }
 
     const data = await createSavedIdeaService({
+      userId: req.user.uid,
       type,
       content,
       platform,
@@ -32,8 +33,7 @@ async function createSavedIdea(req, res) {
 
 async function getSavedIdeas(req, res) {
   try {
-    const data = await getSavedIdeasService();
-
+    const data = await getSavedIdeasService(req.user.uid);
     return res.status(200).json(data);
   } catch (error) {
     console.error("Get saved ideas error:", error);
@@ -47,8 +47,10 @@ async function deleteSavedIdea(req, res) {
   try {
     const { id } = req.params;
 
-    await deleteSavedIdeaService(id);
-
+    await deleteSavedIdeaService({
+      id,
+      userId: req.user.uid,
+    });
     return res.status(200).json({
       message: "Idea deleted successfully",
     });

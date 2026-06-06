@@ -350,8 +350,15 @@ function buildResearchFromVideos({ niche, platform, audience, videos }) {
   };
 }
 
-async function saveResearchQuery({ niche, platform, audience, response }) {
+async function saveResearchQuery({
+  niche,
+  platform,
+  audience,
+  response,
+  userId,
+}) {
   const { error } = await supabase.from("research_queries").insert({
+    user_id: userId,
     niche,
     platform,
     audience,
@@ -363,7 +370,7 @@ async function saveResearchQuery({ niche, platform, audience, response }) {
   }
 }
 
-async function createResearchResult({ niche, platform, audience }) {
+async function createResearchResult({ niche, platform, audience, userId }) {
   const cleanNiche = niche || "AI tools";
   const cleanPlatform = platform || "YouTube";
   const cleanAudience = audience || "New creators";
@@ -408,6 +415,7 @@ async function createResearchResult({ niche, platform, audience }) {
       platform: cleanPlatform,
       audience: cleanAudience,
       response,
+      userId,
     });
 
     return response;
@@ -419,12 +427,12 @@ async function createResearchResult({ niche, platform, audience }) {
       platform: cleanPlatform,
       audience: cleanAudience,
     });
-
     await saveResearchQuery({
       niche: cleanNiche,
       platform: cleanPlatform,
       audience: cleanAudience,
-      response: fallbackResponse,
+      response,
+      userId,
     });
 
     return fallbackResponse;

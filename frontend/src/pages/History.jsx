@@ -6,6 +6,7 @@ import DashboardLayout from "../components/layout/DashboardLayout";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
 import { getResearchHistory } from "../lib/api";
+import { useAuth } from "../context/AuthContext";
 
 const CURRENT_RESEARCH_KEY = "viralMindCurrentResearch";
 
@@ -29,13 +30,22 @@ export default function History() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const { user, authLoading, setAuthModalOpen } = useAuth();
+
   const fetchHistory = async () => {
     try {
       setLoading(true);
       setError("");
 
-      const data = await getResearchHistory();
-      setHistory(Array.isArray(data) ? data : []);
+      const response = await getResearchHistory();
+
+      const list = Array.isArray(response)
+        ? response
+        : Array.isArray(response?.data)
+          ? response.data
+          : [];
+
+      setHistory(list);
     } catch (err) {
       setError(err.message || "Failed to load history");
     } finally {
@@ -44,8 +54,18 @@ export default function History() {
   };
 
   useEffect(() => {
+    if (authLoading) {
+      return;
+    }
+
+    if (!user) {
+      setLoading(false);
+      setAuthModalOpen(true);
+      return;
+    }
+
     fetchHistory();
-  }, []);
+  }, [user, authLoading]);
 
   const handleOpenHistory = (item) => {
     const scan = {
@@ -100,7 +120,7 @@ export default function History() {
         </CardContent>
       </Card>
 
-      {loading && (
+      {(loading || authLoading) && (
         <div className="flex min-h-[240px] items-center justify-center rounded-3xl border border-white/10 bg-white/[0.04]">
           <div className="flex items-center gap-3 text-sm text-zinc-400">
             <Loader2 className="h-5 w-5 animate-spin text-cyan-300" />
@@ -109,78 +129,104 @@ export default function History() {
         </div>
       )}
 
-      {!loading && error && (
+      {!loading && !authLoading && !user && (
+        <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-8 text-center">
+          <h3 className="text-lg font-semibold text-white">Login required</h3>
+
+          <p className="mt-2 text-sm text-zinc-500">
+            Please login to view your research history.
+          </p>
+
+          <Button
+            type="button"
+            onClick={() => setAuthModalOpen(true)}
+            className="mt-5 rounded-full bg-cyan-300 px-6 text-sm font-semibold text-black hover:bg-cyan-200"
+          >
+            Login
+          </Button>
+        </div>
+      )}
+
+      {!loading && !authLoading && user && error && (
         <div className="rounded-3xl border border-red-400/20 bg-red-500/10 p-5 text-sm text-red-200">
           {error}
         </div>
       )}
 
-      {!loading && !error && filteredHistory.length === 0 && (
-        <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-8 text-center">
-          <h3 className="text-lg font-semibold text-white">
-            No history found
-          </h3>
+      {!loading &&
+        !authLoading &&
+        user &&
+        !error &&
+        filteredHistory.length === 0 && (
+          <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-8 text-center">
+            <h3 className="text-lg font-semibold text-white">
+              No history found
+            </h3>
 
-          <p className="mt-2 text-sm text-zinc-500">
-            Search from the dashboard first, then your research history will
-            appear here.
-          </p>
-        </div>
-      )}
+            <p className="mt-2 text-sm text-zinc-500">
+              Search from the dashboard first, then your research history will
+              appear here.
+            </p>
+          </div>
+        )}
 
-      {!loading && !error && filteredHistory.length > 0 && (
-        <section className="space-y-3">
-          {filteredHistory.map((item) => {
-            const topicsCount =
-              item.response_json?.trendingTopics?.length || 0;
-            const hooksCount = item.response_json?.viralHooks?.length || 0;
-            const titlesCount =
-              item.response_json?.titleSuggestions?.length || 0;
+      {!loading &&
+        !authLoading &&
+        user &&
+        !error &&
+        filteredHistory.length > 0 && (
+          <section className="space-y-3">
+            {filteredHistory.map((item) => {
+              const topicsCount =
+                item.response_json?.trendingTopics?.length || 0;
+              const hooksCount = item.response_json?.viralHooks?.length || 0;
+              const titlesCount =
+                item.response_json?.titleSuggestions?.length || 0;
 
-            return (
-              <button
-                type="button"
-                key={item.id}
-                onClick={() => handleOpenHistory(item)}
-                className="w-full rounded-3xl border border-white/10 bg-white/[0.04] p-4 text-left transition hover:-translate-y-0.5 hover:bg-white/[0.07]"
-              >
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="flex min-w-0 gap-4">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-300/10">
-                      <Clock className="h-5 w-5 text-cyan-300" />
+              return (
+                <button
+                  type="button"
+                  key={item.id}
+                  onClick={() => handleOpenHistory(item)}
+                  className="w-full rounded-3xl border border-white/10 bg-white/[0.04] p-4 text-left transition hover:-translate-y-0.5 hover:bg-white/[0.07]"
+                >
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex min-w-0 gap-4">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-300/10">
+                        <Clock className="h-5 w-5 text-cyan-300" />
+                      </div>
+
+                      <div className="min-w-0">
+                        <h3 className="truncate text-base font-semibold text-white">
+                          {item.niche}
+                        </h3>
+
+                        <p className="mt-1 text-sm text-zinc-500">
+                          {item.platform} • {item.audience} •{" "}
+                          {formatDate(item.created_at)}
+                        </p>
+                      </div>
                     </div>
 
-                    <div className="min-w-0">
-                      <h3 className="truncate text-base font-semibold text-white">
-                        {item.niche}
-                      </h3>
-
-                      <p className="mt-1 text-sm text-zinc-500">
-                        {item.platform} • {item.audience} •{" "}
-                        {formatDate(item.created_at)}
-                      </p>
+                    <div className="grid gap-3 text-xs sm:grid-cols-3 lg:w-[360px]">
+                      <MiniStat label="Topics" value={topicsCount} />
+                      <MiniStat label="Hooks" value={hooksCount} />
+                      <MiniStat label="Titles" value={titlesCount} />
                     </div>
-                  </div>
 
-                  <div className="grid gap-3 text-xs sm:grid-cols-3 lg:w-[360px]">
-                    <MiniStat label="Topics" value={topicsCount} />
-                    <MiniStat label="Hooks" value={hooksCount} />
-                    <MiniStat label="Titles" value={titlesCount} />
+                    <Button
+                      type="button"
+                      className="h-10 rounded-full bg-white px-4 text-xs font-semibold text-black hover:bg-zinc-200"
+                    >
+                      Open
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
                   </div>
-
-                  <Button
-                    type="button"
-                    className="h-10 rounded-full bg-white px-4 text-xs font-semibold text-black hover:bg-zinc-200"
-                  >
-                    Open
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </button>
-            );
-          })}
-        </section>
-      )}
+                </button>
+              );
+            })}
+          </section>
+        )}
     </DashboardLayout>
   );
 }

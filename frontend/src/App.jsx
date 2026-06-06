@@ -11,6 +11,7 @@ import AuthModal from "./components/auth/AuthModal";
 import { useAuth } from "./context/AuthContext";
 import Payment from "./pages/Payment";
 import ContentPack from "./pages/ContentPack";
+import SavedThumbnails from "./pages/SavedThumbnails";
 
 function ProtectedRoute({ children }) {
   const { user, authLoading } = useAuth();
@@ -95,6 +96,15 @@ function App() {
           element={
             <ProtectedRoute>
               <ContentPack />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/saved-thumbnails"
+          element={
+            <ProtectedRoute>
+              <SavedThumbnails />
             </ProtectedRoute>
           }
         />

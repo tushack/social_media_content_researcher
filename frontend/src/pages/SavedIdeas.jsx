@@ -5,6 +5,7 @@ import DashboardLayout from "../components/layout/DashboardLayout";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
 import { deleteSavedIdea, getSavedIdeas } from "../lib/api";
+import { useAuth } from "../context/AuthContext";
 
 export default function SavedIdeas() {
   const [query, setQuery] = useState("");
@@ -13,13 +14,22 @@ export default function SavedIdeas() {
   const [deletingId, setDeletingId] = useState("");
   const [error, setError] = useState("");
 
+  const { user, authLoading, setAuthModalOpen } = useAuth();
+
   const fetchIdeas = async () => {
     try {
       setLoading(true);
       setError("");
 
-      const data = await getSavedIdeas();
-      setIdeas(Array.isArray(data) ? data : []);
+      const response = await getSavedIdeas();
+
+      const list = Array.isArray(response)
+        ? response
+        : Array.isArray(response?.data)
+          ? response.data
+          : [];
+
+      setIdeas(list);
     } catch (err) {
       setError(err.message || "Failed to load saved ideas");
     } finally {
@@ -28,12 +38,22 @@ export default function SavedIdeas() {
   };
 
   useEffect(() => {
+    if (authLoading) {
+      return;
+    }
+
+    if (!user) {
+      setLoading(false);
+      setAuthModalOpen(true);
+      return;
+    }
+
     fetchIdeas();
-  }, []);
+  }, [user, authLoading]);
 
   const handleCopy = async (content) => {
     try {
-      await navigator.clipboard.writeText(content);
+      await navigator.clipboard.writeText(content || "");
     } catch {
       alert("Copy failed");
     }
@@ -93,7 +113,7 @@ export default function SavedIdeas() {
         </CardContent>
       </Card>
 
-      {loading && (
+      {(loading || authLoading) && (
         <div className="flex min-h-[240px] items-center justify-center rounded-3xl border border-white/10 bg-white/[0.04]">
           <div className="flex items-center gap-3 text-sm text-zinc-400">
             <Loader2 className="h-5 w-5 animate-spin text-cyan-300" />
@@ -102,13 +122,33 @@ export default function SavedIdeas() {
         </div>
       )}
 
-      {!loading && error && (
+      {!loading && !authLoading && !user && (
+        <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-8 text-center">
+          <h3 className="text-lg font-semibold text-white">
+            Login required
+          </h3>
+
+          <p className="mt-2 text-sm text-zinc-500">
+            Please login to view your saved ideas.
+          </p>
+
+          <Button
+            type="button"
+            onClick={() => setAuthModalOpen(true)}
+            className="mt-5 rounded-full bg-cyan-300 px-6 text-sm font-semibold text-black hover:bg-cyan-200"
+          >
+            Login
+          </Button>
+        </div>
+      )}
+
+      {!loading && !authLoading && user && error && (
         <div className="rounded-3xl border border-red-400/20 bg-red-500/10 p-5 text-sm text-red-200">
           {error}
         </div>
       )}
 
-      {!loading && !error && filteredIdeas.length === 0 && (
+      {!loading && !authLoading && user && !error && filteredIdeas.length === 0 && (
         <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-8 text-center">
           <h3 className="text-lg font-semibold text-white">
             No saved ideas found
@@ -121,7 +161,7 @@ export default function SavedIdeas() {
         </div>
       )}
 
-      {!loading && !error && filteredIdeas.length > 0 && (
+      {!loading && !authLoading && user && !error && filteredIdeas.length > 0 && (
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filteredIdeas.map((item) => (
             <Card

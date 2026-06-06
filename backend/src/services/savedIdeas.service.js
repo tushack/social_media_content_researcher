@@ -1,9 +1,17 @@
 const supabase = require("../config/supabase");
 
 async function createSavedIdeaService(payload) {
+  const { userId, type, content, platform, niche } = payload;
+
   const { data, error } = await supabase
     .from("saved_ideas")
-    .insert(payload)
+    .insert({
+      user_id: userId,
+      type,
+      content,
+      platform,
+      niche,
+    })
     .select()
     .single();
 
@@ -14,24 +22,26 @@ async function createSavedIdeaService(payload) {
   return data;
 }
 
-async function getSavedIdeasService() {
+async function getSavedIdeasService(userId) {
   const { data, error } = await supabase
     .from("saved_ideas")
     .select("*")
+    .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
   if (error) {
     throw error;
   }
 
-  return data;
+  return data || [];
 }
 
-async function deleteSavedIdeaService(id) {
+async function deleteSavedIdeaService({ id, userId }) {
   const { error } = await supabase
     .from("saved_ideas")
     .delete()
-    .eq("id", id);
+    .eq("id", id)
+    .eq("user_id", userId);
 
   if (error) {
     throw error;

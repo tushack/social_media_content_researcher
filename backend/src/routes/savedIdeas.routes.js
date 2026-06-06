@@ -7,8 +7,12 @@ const {
   deleteSavedIdea,
 } = require("../controllers/savedIdeas.controller");
 
-router.post("/", createSavedIdea);
-router.get("/", getSavedIdeas);
-router.delete("/:id", deleteSavedIdea);
+const {
+  requireFirebaseAuth,
+} = require("../middlewares/auth.middleware");
+
+router.post("/", requireFirebaseAuth, createSavedIdea);
+router.get("/", requireFirebaseAuth, getSavedIdeas);
+router.delete("/:id", requireFirebaseAuth, deleteSavedIdea);
 
 module.exports = router;
