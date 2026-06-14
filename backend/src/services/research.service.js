@@ -1,5 +1,53 @@
 const supabase = require("../config/supabase");
 
+const FRESH_SEARCH_ANGLES = [
+  "latest trending ideas",
+  "new viral topics",
+  "beginner problems",
+  "mistakes to avoid",
+  "30 day challenge",
+  "myths and facts",
+  "step by step guide",
+  "before and after",
+  "common questions",
+  "high demand topics",
+  "low competition ideas",
+  "shorts ideas",
+];
+
+const FALLBACK_TOPIC_ANGLES = [
+  "beginner mistakes to avoid",
+  "simple daily routine",
+  "myths people still believe",
+  "quick tips for busy people",
+  "before and after breakdown",
+  "things nobody explains clearly",
+  "budget friendly guide",
+  "7 day challenge idea",
+  "common questions answered",
+  "tools and apps comparison",
+  "step by step tutorial",
+  "weekly plan for beginners",
+  "do this instead of that",
+  "top habits that actually work",
+  "red flags beginners miss",
+  "case study breakdown",
+  "small changes with big results",
+  "things I wish I knew earlier",
+  "mistakes that slow progress",
+  "quick checklist for beginners",
+  "high value tips under 60 seconds",
+  "complete starter roadmap",
+  "realistic plan for working people",
+  "easy wins most creators ignore",
+  "trend explained in simple words",
+  "advanced tips made simple",
+  "daily routine audit",
+  "best free resources",
+  "what to stop doing today",
+  "weekly content series idea",
+];
+
 const {
   runApifyYouTubeSearch,
   runApifyYouTubeChannelAnalysis,
@@ -47,6 +95,89 @@ function getTextValue(value, fallback = "") {
   }
 
   return fallback;
+}
+
+function getDifficulty(index) {
+  if (index <= 2) return "Easy Win";
+  if (index <= 7) return "Medium Effort";
+
+  return "High Reward";
+}
+
+function createTopicFingerprint(text) {
+  return String(text || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter(
+      (word) =>
+        ![
+          "the",
+          "a",
+          "an",
+          "for",
+          "and",
+          "or",
+          "to",
+          "of",
+          "in",
+          "on",
+          "with",
+          "without",
+          "how",
+          "why",
+          "what",
+          "best",
+          "top",
+          "new",
+          "latest",
+          "video",
+          "videos",
+          "youtube",
+          "shorts",
+        ].includes(word)
+    )
+    .slice(0, 10)
+    .join("-");
+}
+
+function collectTopicsFromResponse(response) {
+  if (!response || typeof response !== "object") return [];
+
+  const topics = Array.isArray(response.trendingTopics)
+    ? response.trendingTopics
+    : [];
+
+  return topics
+    .map((item) => getTextValue(item?.topic || item?.title || item, ""))
+    .filter(Boolean);
+}
+
+async function getPreviouslyGeneratedTopics({ userId, niche, limit = 100 }) {
+  if (!userId || !niche) return [];
+
+  const { data, error } = await supabase
+    .from("research_queries")
+    .select("response_json")
+    .eq("user_id", userId)
+    .eq("niche", niche)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error("Previous topics fetch error:", error);
+    return [];
+  }
+
+  return (data || []).flatMap((item) =>
+    collectTopicsFromResponse(item.response_json)
+  );
+}
+
+function pickFreshSearchAngle(avoidTopics = []) {
+  const index = avoidTopics.length % FRESH_SEARCH_ANGLES.length;
+  return FRESH_SEARCH_ANGLES[index];
 }
 
 function normalizeViewCount(value) {
@@ -220,10 +351,18 @@ function normalizeApifyVideo(item) {
   };
 }
 
-function createFallbackResearch({ niche, platform, audience }) {
-  const cleanNiche = niche || "AI tools";
+function createFallbackResearch({
+  niche,
+  platform,
+  audience,
+  maxTopics = 12,
+  avoidTopics = [],
+}) {  const cleanNiche = niche || "AI tools";
   const cleanPlatform = platform || "YouTube";
   const cleanAudience = audience || "New creators";
+  const avoidSet = new Set(
+  avoidTopics.map(createTopicFingerprint).filter(Boolean)
+);
 
   return {
     trendingTopics: [

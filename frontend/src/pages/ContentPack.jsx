@@ -4,28 +4,30 @@ import {
   CheckCircle2,
   Copy,
   Download,
+  ExternalLink,
   FileText,
   Hash,
   Image,
   Loader2,
   MessageCircle,
+  Play,
   PlayCircle,
   Sparkles,
   TrendingUp,
   Wand2,
   X,
 } from "lucide-react";
-import { useAuth } from "../context/AuthContext";
-import {
-  getSavedThumbnailsByTopic,
-  saveGeneratedThumbnail,
-} from "../lib/thumbnailStore";
-import { generateAiThumbnail } from "../lib/api";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import DashboardLayout from "../components/layout/DashboardLayout";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
+import { useAuth } from "../context/AuthContext";
+import {
+  getSavedThumbnailsByTopic,
+  saveGeneratedThumbnail,
+} from "../lib/thumbnailStore";
+import { applyYoutubeReadyKit, generateAiThumbnail } from "../lib/api";
 
 function CopyButton({ text }) {
   const [copied, setCopied] = React.useState(false);
@@ -164,12 +166,12 @@ function buildDynamicPack(rawPack) {
     rawPack?.talkingPoints?.length > 0
       ? rawPack.talkingPoints
       : [
-        `Trend signal: "${topic}" is showing ${growth} growth right now.`,
-        `Competition level is ${competition}, so the content angle needs to be clear and specific.`,
-        `Audience fit: this topic can work well for ${audience.toLowerCase()}.`,
-        `Main insight: ${insight}`,
-        `Best execution: use a strong hook, simple explanation, and a practical example for ${platform}.`,
-      ];
+          `Trend signal: "${topic}" is showing ${growth} growth right now.`,
+          `Competition level is ${competition}, so the content angle needs to be clear and specific.`,
+          `Audience fit: this topic can work well for ${audience.toLowerCase()}.`,
+          `Main insight: ${insight}`,
+          `Best execution: use a strong hook, simple explanation, and a practical example for ${platform}.`,
+        ];
 
   const cta =
     rawPack?.cta ||
@@ -185,28 +187,28 @@ function buildDynamicPack(rawPack) {
     rawPack?.tags?.length > 0
       ? rawPack.tags
       : [
-        topic,
-        niche,
-        platform,
-        audience,
-        `${platform} growth`,
-        `${niche} ideas`,
-        "viral video ideas",
-        "content strategy",
-        "creator tips",
-        "trend analysis",
-      ];
+          topic,
+          niche,
+          platform,
+          audience,
+          `${platform} growth`,
+          `${niche} ideas`,
+          "viral video ideas",
+          "content strategy",
+          "creator tips",
+          "trend analysis",
+        ];
 
   const hashtags =
     rawPack?.hashtags?.length > 0
       ? rawPack.hashtags
       : [
-        ...hashtagWords.map((word) => `#${word}`),
-        "#YouTubeGrowth",
-        "#ContentCreator",
-        "#ViralIdeas",
-        "#ContentStrategy",
-      ];
+          ...hashtagWords.map((word) => `#${word}`),
+          "#YouTubeGrowth",
+          "#ContentCreator",
+          "#ViralIdeas",
+          "#ContentStrategy",
+        ];
 
   const pinnedComment =
     rawPack?.pinnedComment ||
@@ -303,11 +305,38 @@ export default function ContentPack() {
   const { user } = useAuth();
 
   const [savedThumbnails, setSavedThumbnails] = React.useState([]);
-  const [savedThumbnailsLoading, setSavedThumbnailsLoading] = React.useState(false);
+  const [savedThumbnailsLoading, setSavedThumbnailsLoading] =
+    React.useState(false);
   const [fullscreenImage, setFullscreenImage] = React.useState("");
   const [thumbnailSaveStatus, setThumbnailSaveStatus] = React.useState("");
   const [thumbnailSaveError, setThumbnailSaveError] = React.useState("");
   const [savingThumbnailId, setSavingThumbnailId] = React.useState("");
+
+  const [youtubeVideoUrl, setYoutubeVideoUrl] = React.useState("");
+  const [youtubeApplying, setYoutubeApplying] = React.useState(false);
+  const [youtubeKitMessage, setYoutubeKitMessage] = React.useState("");
+  const [youtubeKitError, setYoutubeKitError] = React.useState("");
+
+  const readyKitTitle = pack?.videoTitle || pack?.title || "";
+
+  const readyKitDescription =
+    pack?.description ||
+    `${pack?.insight || ""}\n\n${
+      Array.isArray(pack?.hashtags) ? pack.hashtags.join(" ") : ""
+    }`;
+
+  const readyKitHashtags = Array.isArray(pack?.hashtags)
+    ? pack.hashtags.join(" ")
+    : pack?.hashtags || "";
+
+  const readyKitTags = Array.isArray(pack?.tags)
+    ? pack.tags
+    : Array.isArray(pack?.keywords)
+      ? pack.keywords
+      : [];
+
+  const readyKitThumbnailUrl =
+    activeThumbnail?.imageUrl || savedThumbnails?.[0]?.imageUrl || "";
 
   const loadSavedThumbnails = React.useCallback(async () => {
     if (!user?.uid || !pack?.topic) {
@@ -359,7 +388,9 @@ export default function ContentPack() {
           isSaved: false,
         };
 
-        setAiThumbnails((current) => [generatedThumbnail, ...current].slice(0, 6));
+        setAiThumbnails((current) =>
+          [generatedThumbnail, ...current].slice(0, 6)
+        );
       } catch (err) {
         setThumbnailError(err.message || "Could not generate a thumbnail.");
       } finally {
@@ -387,10 +418,13 @@ export default function ContentPack() {
       }
 
       try {
-        const saveId = thumbnail.localId || thumbnail.generatedAt || thumbnail.imageUrl;
+        const saveId =
+          thumbnail.localId || thumbnail.generatedAt || thumbnail.imageUrl;
 
         setSavingThumbnailId(saveId);
-        setThumbnailSaveStatus("Saving selected image to Cloudinary and Firestore...");
+        setThumbnailSaveStatus(
+          "Saving selected image to Cloudinary and Firestore..."
+        );
         setThumbnailSaveError("");
 
         const savedItem = await saveGeneratedThumbnail({
@@ -408,10 +442,10 @@ export default function ContentPack() {
           current.map((item) =>
             item.imageUrl === thumbnail.imageUrl
               ? {
-                ...item,
-                isSaved: true,
-                savedId: savedItem.id,
-              }
+                  ...item,
+                  isSaved: true,
+                  savedId: savedItem.id,
+                }
               : item
           )
         );
@@ -422,8 +456,7 @@ export default function ContentPack() {
 
         setThumbnailSaveStatus("");
         setThumbnailSaveError(
-          saveError.message ||
-          "Thumbnail Cloudinary/Firestore me save nahi hua."
+          saveError.message || "Thumbnail Cloudinary/Firestore me save nahi hua."
         );
       } finally {
         setSavingThumbnailId("");
@@ -431,6 +464,39 @@ export default function ContentPack() {
     },
     [pack, thumbnailPrompt, user?.uid]
   );
+
+  const handleApplyYoutubeKit = async () => {
+    if (!youtubeVideoUrl.trim()) {
+      setYoutubeKitError("Please paste your uploaded YouTube video URL.");
+      return;
+    }
+
+    try {
+      setYoutubeApplying(true);
+      setYoutubeKitMessage("");
+      setYoutubeKitError("");
+
+      const finalDescription = `${readyKitDescription}\n\n${readyKitHashtags}`;
+
+      const result = await applyYoutubeReadyKit({
+        videoUrl: youtubeVideoUrl,
+        title: readyKitTitle,
+        description: finalDescription,
+        tags: readyKitTags,
+        thumbnailUrl: readyKitThumbnailUrl,
+      });
+
+      setYoutubeKitMessage("YouTube video metadata updated successfully.");
+
+      if (result?.result?.studioUrl) {
+        window.open(result.result.studioUrl, "_blank");
+      }
+    } catch (error) {
+      setYoutubeKitError(error.message || "Failed to apply YouTube Ready Kit.");
+    } finally {
+      setYoutubeApplying(false);
+    }
+  };
 
   React.useEffect(() => {
     if (!pack || autoThumbnailStartedRef.current) {
@@ -442,16 +508,20 @@ export default function ContentPack() {
   }, [handleGenerateThumbnail, pack]);
 
   const handleDownloadThumbnail = () => {
-    if (!activeThumbnail?.imageUrl) {
+    const imageUrl = readyKitThumbnailUrl || activeThumbnail?.imageUrl;
+
+    if (!imageUrl) {
       return;
     }
 
     const link = document.createElement("a");
-    link.href = activeThumbnail.imageUrl;
+    link.href = imageUrl;
     link.download = `${String(pack.topic || "ai-thumbnail")
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)/g, "")}-thumbnail.${activeThumbnail.outputFormat || "jpeg"}`;
+      .replace(/(^-|-$)/g, "")}-thumbnail.${
+      activeThumbnail?.outputFormat || "jpeg"
+    }`;
 
     document.body.appendChild(link);
     link.click();
@@ -552,7 +622,7 @@ export default function ContentPack() {
               <Button
                 type="button"
                 onClick={handleDownloadThumbnail}
-                disabled={!activeThumbnail?.imageUrl}
+                disabled={!readyKitThumbnailUrl}
                 className="rounded-full bg-cyan-300 px-5 text-sm font-semibold text-black hover:bg-cyan-200"
               >
                 <Download className="h-4 w-4" />
@@ -608,6 +678,7 @@ export default function ContentPack() {
                     {thumbnailError}
                   </p>
                 )}
+
                 <div className="mt-4 flex flex-col gap-3 sm:flex-row">
                   <Button
                     type="button"
@@ -630,16 +701,16 @@ export default function ContentPack() {
                       !activeThumbnail?.imageUrl ||
                       activeThumbnail?.isSaved ||
                       savingThumbnailId ===
-                      (activeThumbnail?.localId ||
-                        activeThumbnail?.generatedAt ||
-                        activeThumbnail?.imageUrl)
+                        (activeThumbnail?.localId ||
+                          activeThumbnail?.generatedAt ||
+                          activeThumbnail?.imageUrl)
                     }
                     className="h-11 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-5 text-sm font-semibold text-emerald-200 hover:bg-emerald-400/20 sm:w-fit"
                   >
                     {savingThumbnailId ===
-                      (activeThumbnail?.localId ||
-                        activeThumbnail?.generatedAt ||
-                        activeThumbnail?.imageUrl) ? (
+                    (activeThumbnail?.localId ||
+                      activeThumbnail?.generatedAt ||
+                      activeThumbnail?.imageUrl) ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <Sparkles className="h-4 w-4" />
@@ -650,7 +721,7 @@ export default function ContentPack() {
                   <Button
                     type="button"
                     onClick={handleDownloadThumbnail}
-                    disabled={!activeThumbnail?.imageUrl}
+                    disabled={!readyKitThumbnailUrl}
                     className="h-11 rounded-full border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-zinc-200 hover:bg-white/[0.1] sm:w-fit"
                   >
                     <Download className="h-4 w-4" />
@@ -658,6 +729,7 @@ export default function ContentPack() {
                   </Button>
                 </div>
               </div>
+
               {thumbnailSaveStatus && (
                 <p className="mt-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-xs leading-6 text-emerald-200">
                   {thumbnailSaveStatus}
@@ -674,7 +746,9 @@ export default function ContentPack() {
                 <div className="grid gap-3 sm:grid-cols-2">
                   {aiThumbnails.map((thumbnail, index) => {
                     const itemSaveId =
-                      thumbnail.localId || thumbnail.generatedAt || thumbnail.imageUrl;
+                      thumbnail.localId ||
+                      thumbnail.generatedAt ||
+                      thumbnail.imageUrl;
 
                     return (
                       <div
@@ -707,7 +781,8 @@ export default function ContentPack() {
                             type="button"
                             onClick={() => handleSaveThumbnail(thumbnail)}
                             disabled={
-                              thumbnail.isSaved || savingThumbnailId === itemSaveId
+                              thumbnail.isSaved ||
+                              savingThumbnailId === itemSaveId
                             }
                             className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-60"
                           >
@@ -868,7 +943,9 @@ export default function ContentPack() {
                       type="button"
                       onClick={() =>
                         navigate(
-                          `/saved-thumbnails?topic=${encodeURIComponent(pack.topic)}`
+                          `/saved-thumbnails?topic=${encodeURIComponent(
+                            pack.topic
+                          )}`
                         )
                       }
                       className="h-11 w-full rounded-full bg-cyan-300 px-5 text-sm font-semibold text-black hover:bg-cyan-200"
@@ -885,6 +962,131 @@ export default function ContentPack() {
             </div>
           </SectionCard>
 
+          {/* <SectionCard icon={Play} title="YouTube Ready Kit">
+            <div className="space-y-4">
+              <p className="text-sm leading-6 text-zinc-500">
+                First upload your video manually on YouTube Studio. Then paste
+                the uploaded video URL here. ViralMind will apply the generated
+                title, description, tags, and thumbnail automatically.
+              </p>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Button
+                  type="button"
+                  onClick={() =>
+                    window.open("https://studio.youtube.com", "_blank")
+                  }
+                  className="h-11 rounded-full bg-white px-5 text-sm font-semibold text-black hover:bg-zinc-200"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Open YouTube Studio
+                </Button>
+
+                <Button
+                  type="button"
+                  onClick={handleDownloadThumbnail}
+                  disabled={!readyKitThumbnailUrl}
+                  className="h-11 rounded-full border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-zinc-200 hover:bg-white/[0.1]"
+                >
+                  <Download className="h-4 w-4" />
+                  Download Thumbnail
+                </Button>
+              </div>
+
+              <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">
+                  Generated Title
+                </p>
+
+                <p className="mt-2 text-sm font-semibold leading-6 text-white">
+                  {readyKitTitle || "No title generated"}
+                </p>
+
+                <div className="mt-3">
+                  <CopyButton text={readyKitTitle} />
+                </div>
+              </div>
+
+              <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">
+                  Generated Description
+                </p>
+
+                <p className="mt-2 whitespace-pre-line text-sm leading-6 text-zinc-300">
+                  {readyKitDescription || "No description generated"}
+                </p>
+
+                <div className="mt-3">
+                  <CopyButton
+                    text={`${readyKitDescription}\n\n${readyKitHashtags}`}
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">
+                  Tags
+                </p>
+
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {readyKitTags.length > 0 ? (
+                    readyKitTags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-zinc-300"
+                      >
+                        {tag}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-sm text-zinc-500">No tags generated</p>
+                  )}
+                </div>
+              </div>
+
+              <label className="block">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                  Uploaded YouTube Video URL
+                </p>
+
+                <input
+                  value={youtubeVideoUrl}
+                  onChange={(event) => setYoutubeVideoUrl(event.target.value)}
+                  placeholder="https://www.youtube.com/watch?v=..."
+                  className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-cyan-300/40"
+                />
+              </label>
+
+              <Button
+                type="button"
+                onClick={handleApplyYoutubeKit}
+                disabled={youtubeApplying}
+                className="h-11 w-full rounded-full bg-cyan-300 px-5 text-sm font-semibold text-black hover:bg-cyan-200"
+              >
+                {youtubeApplying ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Play className="h-4 w-4" />
+                )}
+                {youtubeApplying
+                  ? "Applying..."
+                  : "Apply Metadata to Uploaded Video"}
+              </Button>
+
+              {youtubeKitMessage && (
+                <p className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-200">
+                  {youtubeKitMessage}
+                </p>
+              )}
+
+              {youtubeKitError && (
+                <p className="rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                  {youtubeKitError}
+                </p>
+              )}
+            </div>
+          </SectionCard> */}
+
           <Card className="border-cyan-300/15 bg-cyan-300/[0.04]">
             <CardContent className="p-5">
               <h3 className="text-base font-semibold text-cyan-100">
@@ -899,6 +1101,7 @@ export default function ContentPack() {
           </Card>
         </div>
       </section>
+
       {fullscreenImage && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4"

@@ -60,9 +60,15 @@ export default function SavedIdeas() {
   };
 
   const handleDelete = async (id) => {
-    const confirmDelete = window.confirm(
-      "Are you sure you want to delete this saved idea?"
-    );
+    const confirmDelete = await window.appConfirm({
+      type: "delete",
+      title: "Delete saved idea?",
+      message: "Are you sure you want to delete this saved idea? This action cannot be undone.",
+      confirmText: "Yes, Delete",
+      cancelText: "Cancel",
+    });
+
+
 
     if (!confirmDelete) return;
 
@@ -80,9 +86,8 @@ export default function SavedIdeas() {
   };
 
   const filteredIdeas = ideas.filter((item) => {
-    const searchText = `${item.type || ""} ${item.content || ""} ${
-      item.platform || ""
-    } ${item.niche || ""}`.toLowerCase();
+    const searchText = `${item.type || ""} ${item.content || ""} ${item.platform || ""
+      } ${item.niche || ""}`.toLowerCase();
 
     return searchText.includes(query.toLowerCase());
   });

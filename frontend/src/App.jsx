@@ -12,6 +12,8 @@ import { useAuth } from "./context/AuthContext";
 import Payment from "./pages/Payment";
 import ContentPack from "./pages/ContentPack";
 import SavedThumbnails from "./pages/SavedThumbnails";
+import Profile from "./pages/Profile";
+import DataPrivacy from "./pages/DataPrivacy";
 
 function ProtectedRoute({ children }) {
   const { user, authLoading } = useAuth();
@@ -83,6 +85,15 @@ function App() {
         />
 
         <Route
+          path="/data-privacy"
+          element={
+            <ProtectedRoute>
+              <DataPrivacy />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/payment"
           element={
             <ProtectedRoute>
@@ -105,6 +116,15 @@ function App() {
           element={
             <ProtectedRoute>
               <SavedThumbnails />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Profile />
             </ProtectedRoute>
           }
         />

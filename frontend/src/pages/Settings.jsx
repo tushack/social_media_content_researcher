@@ -7,12 +7,27 @@ import {
   Play,
   User,
 } from "lucide-react";
-
+import { useNavigate } from "react-router-dom";
+import { getYoutubeAuthUrl } from "../lib/api";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
 
 export default function Settings() {
+  const navigate = useNavigate();
+
+  const handleConnectYoutube = async () => {
+    try {
+      const data = await getYoutubeAuthUrl();
+
+      if (data?.url) {
+        window.location.href = data.url;
+      }
+    } catch (error) {
+      alert(error.message || "Failed to connect YouTube.");
+    }
+  };
+
   return (
     <DashboardLayout eyebrow="Settings" title="Manage your workspace">
       <section className="mb-6">
@@ -32,27 +47,15 @@ export default function Settings() {
           title="Profile"
           description="Update your name, email, profile image, and creator profile details."
           buttonText="Edit Profile"
+          onClick={() => navigate("/profile")}
         />
 
         {/* <SettingCard
-          icon={Play}
-          title="Research Preferences"
-          description="Set your default niche, platform, target audience, and region for future scans."
-          buttonText="Edit Preferences"
-        /> */}
-
-        <SettingCard
           icon={Link2}
           title="Connected Accounts"
-          description="Connect your YouTube channel to sync channel data and improve research insights."
-          buttonText="Connect"
-        />
-
-        {/* <SettingCard
-          icon={Bell}
-          title="Notifications"
-          description="Control trend alerts, competitor updates, saved idea reminders, and email notifications."
-          buttonText="Manage Alerts"
+          description="Connect your YouTube channel to fetch channel details and apply generated metadata to uploaded videos."
+          buttonText="Connect YouTube"
+          onClick={handleConnectYoutube}
         /> */}
 
         <SettingCard
@@ -60,42 +63,23 @@ export default function Settings() {
           title="Subscription"
           description="View your current plan, usage limits, billing details, and upgrade options."
           buttonText="View Plan"
+          onClick={() => navigate("/payment")}
         />
 
         <SettingCard
           icon={Database}
           title="Data & Privacy"
-          description="Export saved ideas, manage your data, and control privacy preferences."
+          description="Delete selected records or delete your account after email verification. Permanent purge is scheduled after 300 days."
           buttonText="Manage Data"
+          onClick={() => navigate("/data-privacy")}
         />
       </section>
 
-      <section className="mt-6 rounded-3xl border border-white/10 bg-white/[0.04] p-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-base font-semibold text-white">
-              Workspace preferences
-            </h2>
-
-            <p className="mt-1 text-sm leading-6 text-zinc-500">
-              Save your updated preferences and apply them across your research
-              dashboard.
-            </p>
-          </div>
-
-          <Button
-            type="button"
-            className="h-11 w-full rounded-full bg-cyan-300 px-5 text-sm font-semibold text-black hover:bg-cyan-200 sm:w-auto"
-          >
-            Save Changes
-          </Button>
-        </div>
-      </section>
     </DashboardLayout>
   );
 }
 
-function SettingCard({ icon: Icon, title, description, buttonText }) {
+function SettingCard({ icon: Icon, title, description, buttonText, onClick }) {
   return (
     <Card className="border-white/10 bg-white/[0.04] transition hover:bg-white/[0.06]">
       <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
@@ -117,6 +101,7 @@ function SettingCard({ icon: Icon, title, description, buttonText }) {
 
         <Button
           type="button"
+          onClick={onClick}
           className="h-10 w-full shrink-0 rounded-full border border-white/10 bg-white/[0.05] px-4 text-xs font-medium text-zinc-200 hover:bg-white/[0.1] sm:w-auto"
         >
           {buttonText}

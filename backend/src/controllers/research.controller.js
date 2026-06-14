@@ -9,6 +9,10 @@ const {
   getResearchHistoryService,
 } = require("../services/researchHistory.service");
 
+const {
+  getDailyNicheIdeasService,
+} = require("../services/dailyIdeas.service");
+
 async function generateResearch(req, res) {
   try {
     const { niche, platform, audience } = req.body;
@@ -24,6 +28,7 @@ async function generateResearch(req, res) {
       platform,
       audience,
       userId: req.user.uid,
+      maxTopics: 20,
     });
 
     return res.status(200).json(result);
@@ -32,6 +37,30 @@ async function generateResearch(req, res) {
 
     return res.status(500).json({
       message: "Something went wrong while generating research",
+    });
+  }
+}
+
+
+async function getDailyNicheIdeas(req, res) {
+  try {
+    const { niche, platform, audience, limit, forceRefresh } = req.query;
+
+    const result = await getDailyNicheIdeasService({
+      userId: req.user.uid,
+      niche,
+      platform: platform || "YouTube",
+      audience: audience || "New creators",
+      limit: Number(limit) || 20,
+      forceRefresh: forceRefresh === "true",
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error("Daily niche ideas error:", error);
+
+    return res.status(500).json({
+      message: error.message || "Failed to fetch daily niche ideas",
     });
   }
 }
@@ -116,6 +145,7 @@ async function generateThumbnail(req, res) {
 
 module.exports = {
   generateResearch,
+  getDailyNicheIdeas,
   getResearchHistory,
   analyzeCompetitorChannel,
   createContentPack,

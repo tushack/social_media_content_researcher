@@ -35,3 +35,35 @@ button {
 #root {
   min-height: 100vh;
 }
+
+.profile-input {
+  width: 100%;
+  min-height: 3.5rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 0.85rem 1rem;
+  font-size: 0.875rem;
+  color: white;
+  outline: none;
+}
+
+.profile-input::placeholder {
+  color: rgb(82 82 91);
+}
+
+.profile-input:focus {
+  border-color: rgba(103, 232, 249, 0.45);
+  background: rgba(255, 255, 255, 0.075);
+}
+
+
+@keyframes alertProgress {
+  from {
+    width: 100%;
+  }
+
+  to {
+    width: 0%;
+  }
+}

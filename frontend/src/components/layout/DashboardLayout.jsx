@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
+import { Loader2 } from "lucide-react";
+import { useAuth } from "../../context/AuthContext";
 
 export default function DashboardLayout({
   children,
@@ -9,6 +11,29 @@ export default function DashboardLayout({
   onNewScan,
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { authLoading } = useAuth();
+
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#08090d] text-zinc-100">
+        <div className="flex flex-col items-center gap-4">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
+            <Loader2 className="h-7 w-7 animate-spin text-cyan-300" />
+          </div>
+
+          <div className="text-center">
+            <p className="text-sm font-semibold text-white">
+              Loading ViralMind...
+            </p>
+
+            <p className="mt-1 text-xs text-zinc-500">
+              Checking your account session
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-[#08090d] text-zinc-100">

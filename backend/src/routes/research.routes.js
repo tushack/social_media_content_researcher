@@ -3,6 +3,7 @@ const router = express.Router();
 
 const {
   generateResearch,
+  getDailyNicheIdeas,
   getResearchHistory,
   analyzeCompetitorChannel,
   createContentPack,
@@ -14,6 +15,7 @@ const {
 } = require("../middlewares/auth.middleware");
 
 router.post("/generate", requireFirebaseAuth, generateResearch);
+router.get("/daily", requireFirebaseAuth, getDailyNicheIdeas);
 router.get("/history", requireFirebaseAuth, getResearchHistory);
 router.post("/analyze-channel", requireFirebaseAuth, analyzeCompetitorChannel);
 router.post("/content-pack", requireFirebaseAuth, createContentPack);
