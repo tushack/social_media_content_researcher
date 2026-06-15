@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   LogOut,
   MoreVertical,
-  Play,
   Settings,
   Sparkles,
   TrendingUp,
@@ -144,22 +143,25 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
   return (
     <>
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-[82vw] max-w-72 flex-col border-r border-white/10 bg-[#0b0c11]/95 p-4 backdrop-blur-2xl transition-transform duration-300 sm:p-5 lg:w-72 lg:translate-x-0 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
+        className={`fixed inset-y-0 left-0 z-40 flex w-[82vw] max-w-72 flex-col border-r border-white/10 bg-[#0b0c11]/95 p-4 backdrop-blur-2xl transition-transform duration-300 sm:p-5 lg:w-72 lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
       >
         <div className="mb-7 flex items-center justify-between sm:mb-9">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-400 to-violet-500 shadow-lg shadow-cyan-500/20 sm:h-11 sm:w-11">
-              <Play className="h-5 w-5 fill-white text-white" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] sm:h-11 sm:w-11">
+              <img
+                src="/favicon.png"
+                alt="Viralo AI"
+                className="h-[82%] w-[82%] object-contain"
+              />
             </div>
 
             <div className="min-w-0">
               <h1 className="truncate text-base font-semibold tracking-tight text-white">
-                ViralMind
+                Viralo AI
               </h1>
               <p className="truncate text-xs text-zinc-500">
-                AI YouTube Research
+                AI Social Media Research
               </p>
             </div>
           </div>
@@ -183,10 +185,9 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
                 setAccountMenuOpen(false);
               }}
               className={({ isActive }) =>
-                `flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm transition ${
-                  isActive
-                    ? "bg-white/[0.08] text-white shadow-inner shadow-white/5"
-                    : "text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-100"
+                `flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm transition ${isActive
+                  ? "bg-white/[0.08] text-white shadow-inner shadow-white/5"
+                  : "text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-100"
                 }`
               }
             >

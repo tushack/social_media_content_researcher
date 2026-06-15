@@ -1,4 +1,5 @@
 const supabase = require("../config/supabase");
+const { generateGeminiJson } = require("./gemini.service");
 
 const FRESH_SEARCH_ANGLES = [
   "latest trending ideas",
@@ -255,29 +256,49 @@ function calculateAverage(numbers) {
   return Math.round(total / validNumbers.length);
 }
 
-function getGrowth(index) {
-  if (index === 0) return "+184%";
-  if (index === 1) return "+132%";
-  if (index === 2) return "+96%";
-  if (index === 3) return "+74%";
+function calculateRelativeGrowth(videoViews, baselineViews) {
+  const views = Number(videoViews || 0);
+  const baseline = Number(baselineViews || 0);
 
-  return "+52%";
+  if (!views || !baseline) {
+    return "+0%";
+  }
+
+  const growth = Math.round(((views - baseline) / baseline) * 100);
+
+  return `${growth >= 0 ? "+" : ""}${growth}%`;
 }
 
-function getCompetition(index) {
-  if (index === 0) return "High";
-  if (index === 1) return "Medium";
+function getCompetitionFromViews(videoViews, baselineViews) {
+  const views = Number(videoViews || 0);
+  const baseline = Number(baselineViews || 0);
+
+  if (!views || !baseline) {
+    return "Medium";
+  }
+
+  const ratio = views / baseline;
+
+  if (ratio >= 1.5) return "High";
+  if (ratio >= 0.75) return "Medium";
 
   return "Low";
 }
 
-function getScore(index) {
-  if (index === 0) return "92";
-  if (index === 1) return "86";
-  if (index === 2) return "81";
+function getScoreFromViews(videoViews, baselineViews) {
+  const views = Number(videoViews || 0);
+  const baseline = Number(baselineViews || 0);
 
-  return "74";
+  if (!views || !baseline) {
+    return "50";
+  }
+
+  const ratio = views / baseline;
+  const score = Math.round(50 + ratio * 25);
+
+  return String(Math.min(98, Math.max(45, score)));
 }
+
 
 function normalizeApifyVideo(item) {
   const rawTitle = pickField(
@@ -357,32 +378,39 @@ function createFallbackResearch({
   audience,
   maxTopics = 12,
   avoidTopics = [],
-}) {  const cleanNiche = niche || "AI tools";
+}) {
+  const cleanNiche = niche || "AI tools";
   const cleanPlatform = platform || "YouTube";
   const cleanAudience = audience || "New creators";
   const avoidSet = new Set(
-  avoidTopics.map(createTopicFingerprint).filter(Boolean)
-);
+    avoidTopics.map(createTopicFingerprint).filter(Boolean)
+  );
 
   return {
     trendingTopics: [
       {
         topic: `${cleanNiche} for beginners`,
-        growth: "+184%",
+        growth: "+0%",
+        growthSource: "fallback_no_apify_views",
         competition: "Medium",
-        insight: `Strong topic for ${cleanAudience} on ${cleanPlatform}.`,
+        difficulty: "Easy Win",
+        insight: `Strong topic for ${cleanAudience} on ${cleanPlatform}. Real growth will appear when Apify returns video view data.`,
       },
       {
         topic: `Best ${cleanNiche}`,
-        growth: "+132%",
+        growth: "+0%",
+        growthSource: "fallback_no_apify_views",
         competition: "High",
-        insight: `List-style content can perform well for ${cleanNiche}.`,
+        difficulty: "Medium Effort",
+        insight: `List-style content can perform well for ${cleanNiche}. Real growth will appear when Apify returns video view data.`,
       },
       {
         topic: `${cleanNiche} mistakes to avoid`,
-        growth: "+96%",
+        growth: "+0%",
+        growthSource: "fallback_no_apify_views",
         competition: "Low",
-        insight: "Problem-based topics are easier to package into viral hooks.",
+        difficulty: "Easy Win",
+        insight: "Problem-based topics are easier to package into viral hooks. Real growth will appear when Apify returns video view data.",
       },
     ],
 
@@ -405,22 +433,25 @@ function createFallbackResearch({
         channel: `${cleanNiche} Lab`,
         niche: cleanNiche,
         views: "Estimated",
-        growth: "+38%",
-        score: "92",
+        growth: "+0%",
+        growthSource: "fallback_no_apify_views",
+        score: "50",
       },
       {
         channel: `${cleanPlatform} Creator Studio`,
         niche: cleanNiche,
         views: "Estimated",
-        growth: "+24%",
-        score: "86",
+        growth: "+0%",
+        growthSource: "fallback_no_apify_views",
+        score: "50",
       },
       {
         channel: `${cleanAudience} Growth Hub`,
         niche: cleanNiche,
         views: "Estimated",
-        growth: "+19%",
-        score: "81",
+        growth: "+0%",
+        growthSource: "fallback_no_apify_views",
+        score: "50",
       },
     ],
 
@@ -429,36 +460,70 @@ function createFallbackResearch({
   };
 }
 
-function buildResearchFromVideos({ niche, platform, audience, videos }) {
+function buildResearchFromVideos({
+  niche,
+  platform,
+  audience,
+  videos,
+  maxTopics = 20,
+}) {
   const cleanNiche = niche || "AI tools";
   const cleanPlatform = platform || "YouTube";
   const cleanAudience = audience || "New creators";
 
-  const safeVideos = videos.filter((video) => {
-    return video && typeof video.title === "string" && video.title.trim();
-  });
+  const safeVideos = videos
+    .filter((video) => {
+      return video && typeof video.title === "string" && video.title.trim();
+    })
+    .sort((first, second) => Number(second.views || 0) - Number(first.views || 0));
 
   if (!safeVideos.length) {
     return createFallbackResearch({
       niche: cleanNiche,
       platform: cleanPlatform,
       audience: cleanAudience,
+      maxTopics,
     });
   }
 
-  const trendingTopics = safeVideos.slice(0, 4).map((video, index) => ({
-    topic: video.title,
-    growth: getGrowth(index),
-    competition: getCompetition(index),
-    insight: `This video is getting attention with ${formatViews(
-      video.views
-    )} views on ${video.channel}.`,
-  }));
+  const viewCounts = safeVideos.map((video) => Number(video.views || 0));
+  const averageViews = calculateAverage(viewCounts);
+
+  const trendingTopics = safeVideos.slice(0, maxTopics).map((video, index) => {
+    const growth = calculateRelativeGrowth(video.views, averageViews);
+    const competition = getCompetitionFromViews(video.views, averageViews);
+    const difficulty = getDifficulty(index);
+
+    return {
+      topic: video.title,
+      topicHash: createTopicFingerprint(video.title),
+      growth,
+      growthSource: "apify_views_vs_average",
+      averageViews: formatViews(averageViews),
+      actualViews: formatViews(video.views),
+      competition,
+      difficulty,
+      insight: `This video has ${formatViews(
+        video.views
+      )} views compared with an average of ${formatViews(
+        averageViews
+      )} views from the current Apify results. That makes it a ${growth} relative growth signal for ${cleanNiche}.`,
+      shareText: `Video Idea: ${video.title}\nViews: ${formatViews(
+        video.views
+      )}\nRelative Growth: ${growth}\nDifficulty: ${difficulty}`,
+      sourceUrl: video.url,
+      sourceChannel: video.channel,
+      thumbnail: video.thumbnail,
+      publishedAt: video.publishedAt,
+    };
+  });
 
   const viralHooks = safeVideos.slice(0, 4).map((video) => {
-    return `I studied "${video.title}" to understand why it reached ${formatViews(
+    const growth = calculateRelativeGrowth(video.views, averageViews);
+
+    return `I studied "${video.title}" because it reached ${formatViews(
       video.views
-    )} views.`;
+    )} views, which is ${growth} compared with the current niche average.`;
   });
 
   const firstTitle = safeVideos[0]?.title || cleanNiche;
@@ -471,13 +536,19 @@ function buildResearchFromVideos({ niche, platform, audience, videos }) {
     `I Analyzed "${firstTitle}" and Found This Pattern`,
   ];
 
-  const competitors = safeVideos.slice(0, 4).map((video, index) => ({
-    channel: getTextValue(video.channel, "Unknown Channel"),
-    niche: cleanNiche,
-    views: formatViews(video.views),
-    growth: getGrowth(index),
-    score: getScore(index),
-  }));
+  const competitors = safeVideos.slice(0, 4).map((video) => {
+    const growth = calculateRelativeGrowth(video.views, averageViews);
+
+    return {
+      channel: getTextValue(video.channel, "Unknown Channel"),
+      niche: cleanNiche,
+      views: formatViews(video.views),
+      growth,
+      growthSource: "apify_views_vs_average",
+      score: getScoreFromViews(video.views, averageViews),
+      sourceUrl: video.url,
+    };
+  });
 
   return {
     trendingTopics,
@@ -486,6 +557,13 @@ function buildResearchFromVideos({ niche, platform, audience, videos }) {
     competitors,
     sourceVideos: safeVideos,
     source: "apify",
+    meta: {
+      averageViews: formatViews(averageViews),
+      averageViewsRaw: averageViews,
+      totalVideosAnalyzed: safeVideos.length,
+      growthFormula:
+        "relativeGrowth = ((videoViews - averageViews) / averageViews) * 100",
+    },
   };
 }
 
@@ -509,7 +587,13 @@ async function saveResearchQuery({
   }
 }
 
-async function createResearchResult({ niche, platform, audience, userId }) {
+async function createResearchResult({
+  niche,
+  platform,
+  audience,
+  userId,
+  maxTopics = 20,
+}) {
   const cleanNiche = niche || "AI tools";
   const cleanPlatform = platform || "YouTube";
   const cleanAudience = audience || "New creators";
@@ -519,7 +603,7 @@ async function createResearchResult({ niche, platform, audience, userId }) {
   try {
     const apifyItems = await runApifyYouTubeSearch({
       query: searchQuery,
-      maxResults: 10,
+      maxResults: Math.max(20, Number(maxTopics) || 20),
     });
 
     const hasOnlyDemoItems =
@@ -547,6 +631,7 @@ async function createResearchResult({ niche, platform, audience, userId }) {
       platform: cleanPlatform,
       audience: cleanAudience,
       videos,
+      maxTopics: Number(maxTopics) || 20,
     });
 
     await saveResearchQuery({
@@ -565,12 +650,14 @@ async function createResearchResult({ niche, platform, audience, userId }) {
       niche: cleanNiche,
       platform: cleanPlatform,
       audience: cleanAudience,
+      maxTopics: Number(maxTopics) || 20,
     });
+
     await saveResearchQuery({
       niche: cleanNiche,
       platform: cleanPlatform,
       audience: cleanAudience,
-      response,
+      response: fallbackResponse,
       userId,
     });
 
@@ -967,6 +1054,158 @@ function buildContentPack({ topic, growth, competition, insight, niche, platform
   };
 }
 
+function safeArray(value, fallback = []) {
+  return Array.isArray(value) ? value.filter(Boolean) : fallback;
+}
+
+function normalizeGeminiContentPack({ geminiPack, fallbackPack }) {
+  const pack = geminiPack && typeof geminiPack === "object" ? geminiPack : {};
+
+  return {
+    ...fallbackPack,
+
+    topic: cleanString(pack.topic, fallbackPack.topic),
+    growth: cleanString(pack.growth, fallbackPack.growth),
+    competition: cleanString(pack.competition, fallbackPack.competition),
+    insight: cleanString(pack.insight, fallbackPack.insight),
+    niche: cleanString(pack.niche, fallbackPack.niche),
+    platform: cleanString(pack.platform, fallbackPack.platform),
+    audience: cleanString(pack.audience, fallbackPack.audience),
+
+    angle: cleanString(pack.angle, fallbackPack.angle),
+    videoTitle: cleanString(pack.videoTitle, fallbackPack.videoTitle),
+
+    thumbnailHeadline: cleanString(
+      pack.thumbnailHeadline,
+      fallbackPack.thumbnailHeadline
+    ),
+    thumbnailMainText: cleanString(
+      pack.thumbnailMainText,
+      fallbackPack.thumbnailMainText
+    ),
+    thumbnailSubText: cleanString(
+      pack.thumbnailSubText,
+      fallbackPack.thumbnailSubText
+    ),
+    thumbnailBadge: cleanString(pack.thumbnailBadge, fallbackPack.thumbnailBadge),
+
+    posterTitle: cleanString(pack.posterTitle, fallbackPack.posterTitle),
+    posterSubtitle: cleanString(pack.posterSubtitle, fallbackPack.posterSubtitle),
+    posterMainText: cleanString(pack.posterMainText, fallbackPack.posterMainText),
+    posterBadge: cleanString(pack.posterBadge, fallbackPack.posterBadge),
+
+    hook: cleanString(pack.hook, fallbackPack.hook),
+    introScript: cleanString(pack.introScript, fallbackPack.introScript),
+
+    talkingPoints: safeArray(pack.talkingPoints, fallbackPack.talkingPoints),
+    tags: safeArray(pack.tags, fallbackPack.tags),
+    hashtags: safeArray(pack.hashtags, fallbackPack.hashtags),
+
+    cta: cleanString(pack.cta, fallbackPack.cta),
+    description: cleanString(pack.description, fallbackPack.description),
+    pinnedComment: cleanString(pack.pinnedComment, fallbackPack.pinnedComment),
+
+    generatedAt: new Date().toISOString(),
+    source: "gemini",
+    fallbackSource: fallbackPack.source,
+  };
+}
+
+function buildGeminiContentPackPrompt(payload, fallbackPack) {
+  const topic = cleanString(payload?.topic, fallbackPack.topic);
+  const growth = cleanString(payload?.growth, fallbackPack.growth);
+  const competition = cleanString(payload?.competition, fallbackPack.competition);
+  const insight = cleanString(payload?.insight, fallbackPack.insight);
+  const niche = cleanString(payload?.niche, fallbackPack.niche);
+  const platform = cleanString(payload?.platform, fallbackPack.platform);
+  const audience = cleanString(payload?.audience, fallbackPack.audience);
+
+  return `
+You are an expert social media content strategist for creators.
+
+Generate a premium, ready-to-use creator content pack for this topic.
+
+INPUT:
+Topic: ${topic}
+Niche: ${niche}
+Platform: ${platform}
+Audience: ${audience}
+Growth signal: ${growth}
+Competition: ${competition}
+Insight: ${insight}
+
+IMPORTANT RULES:
+- Return ONLY valid JSON.
+- Do not wrap in markdown.
+- Do not add explanation outside JSON.
+- Keep the language clear, punchy, practical, and creator-friendly.
+- Make it useful for YouTube / Shorts style creators.
+- Thumbnail text should be short and readable.
+- Hashtags must start with #.
+- Do not invent fake stats beyond the provided growth signal.
+- Use the provided growth and competition values honestly.
+
+Return this exact JSON shape:
+{
+  "topic": "string",
+  "growth": "string",
+  "competition": "string",
+  "insight": "string",
+  "niche": "string",
+  "platform": "string",
+  "audience": "string",
+
+  "angle": "string",
+  "videoTitle": "string",
+
+  "thumbnailHeadline": "string",
+  "thumbnailMainText": "string",
+  "thumbnailSubText": "string",
+  "thumbnailBadge": "string",
+
+  "posterTitle": "string",
+  "posterSubtitle": "string",
+  "posterMainText": "string",
+  "posterBadge": "string",
+
+  "hook": "string",
+  "introScript": "string",
+
+  "talkingPoints": [
+    "string",
+    "string",
+    "string",
+    "string",
+    "string"
+  ],
+
+  "cta": "string",
+  "description": "string",
+
+  "tags": [
+    "string",
+    "string",
+    "string",
+    "string",
+    "string",
+    "string",
+    "string",
+    "string"
+  ],
+
+  "hashtags": [
+    "#tag",
+    "#tag",
+    "#tag",
+    "#tag",
+    "#tag"
+  ],
+
+  "pinnedComment": "string"
+}
+`;
+}
+
 async function createContentPackResult(payload) {
   const topic = cleanString(payload?.topic);
 
@@ -974,7 +1213,25 @@ async function createContentPackResult(payload) {
     throw new Error("Topic is required to create a content pack");
   }
 
-  return buildContentPack(payload || {});
+  const fallbackPack = buildContentPack(payload || {});
+
+  try {
+    const prompt = buildGeminiContentPackPrompt(payload || {}, fallbackPack);
+    const geminiPack = await generateGeminiJson({ prompt });
+
+    return normalizeGeminiContentPack({
+      geminiPack,
+      fallbackPack,
+    });
+  } catch (error) {
+    console.error("Gemini content pack error:", error.message);
+
+    return {
+      ...fallbackPack,
+      source: "backend-dynamic-fallback",
+      geminiError: error.message,
+    };
+  }
 }
 
 function buildThumbnailGenerationPrompt({ pack, prompt, variant = 1 }) {
