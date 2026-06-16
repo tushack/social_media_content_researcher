@@ -742,6 +742,8 @@ export default function Dashboard() {
         niche: niche || getTextValue(item?.niche, activeNiche),
         platform: selectedPlatform,
         audience: selectedAudience,
+        variantSeed: Date.now(),
+        generationMode: "fresh",
       });
 
       navigate("/content-pack", {

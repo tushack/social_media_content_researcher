@@ -15,9 +15,13 @@ import {
   Sparkles,
   TrendingUp,
   Wand2,
+  Bookmark,
+  BookmarkCheck,
+  Trash2,
   X,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
 
 import DashboardLayout from "../components/layout/DashboardLayout";
 import { Button } from "../components/ui/button";
@@ -28,6 +32,73 @@ import {
   saveGeneratedThumbnail,
 } from "../lib/thumbnailStore";
 import { applyYoutubeReadyKit, generateAiThumbnail } from "../lib/api";
+
+const SAVED_CONTENT_PACK_LIMIT = 30;
+
+function getSavedContentPackKey(userId) {
+  return userId
+    ? `viraloSavedContentPacks:${userId}`
+    : "viraloSavedContentPacks:guest";
+}
+
+function getPackId(rawPack) {
+  return [
+    rawPack?.contentPackId,
+    rawPack?.id,
+    rawPack?.generatedAt,
+    rawPack?.topic,
+    rawPack?.videoTitle,
+  ]
+    .filter(Boolean)
+    .join("|");
+}
+
+function loadSavedContentPacks(key) {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key) || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistSavedContentPacks(key, items) {
+  localStorage.setItem(key, JSON.stringify(items));
+}
+
+function createSavedPackItem(rawPack) {
+  const id = getPackId(rawPack) || `pack-${Date.now()}`;
+
+  return {
+    id,
+    topic: rawPack?.topic || "Untitled content pack",
+    videoTitle:
+      rawPack?.videoTitle ||
+      rawPack?.title ||
+      rawPack?.topic ||
+      "Untitled content pack",
+    growth: rawPack?.growth || "0%",
+    competition: rawPack?.competition || "Medium",
+    platform: rawPack?.platform || "YouTube",
+    createdAt: rawPack?.generatedAt || new Date().toISOString(),
+    pack: rawPack,
+  };
+}
+
+function formatSavedPackTime(value) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Recent";
+  }
+
+  return date.toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 function CopyButton({ text }) {
   const [copied, setCopied] = React.useState(false);
@@ -166,12 +237,12 @@ function buildDynamicPack(rawPack) {
     rawPack?.talkingPoints?.length > 0
       ? rawPack.talkingPoints
       : [
-          `Trend signal: "${topic}" is showing ${growth} growth right now.`,
-          `Competition level is ${competition}, so the content angle needs to be clear and specific.`,
-          `Audience fit: this topic can work well for ${audience.toLowerCase()}.`,
-          `Main insight: ${insight}`,
-          `Best execution: use a strong hook, simple explanation, and a practical example for ${platform}.`,
-        ];
+        `Trend signal: "${topic}" is showing ${growth} growth right now.`,
+        `Competition level is ${competition}, so the content angle needs to be clear and specific.`,
+        `Audience fit: this topic can work well for ${audience.toLowerCase()}.`,
+        `Main insight: ${insight}`,
+        `Best execution: use a strong hook, simple explanation, and a practical example for ${platform}.`,
+      ];
 
   const cta =
     rawPack?.cta ||
@@ -187,28 +258,28 @@ function buildDynamicPack(rawPack) {
     rawPack?.tags?.length > 0
       ? rawPack.tags
       : [
-          topic,
-          niche,
-          platform,
-          audience,
-          `${platform} growth`,
-          `${niche} ideas`,
-          "viral video ideas",
-          "content strategy",
-          "creator tips",
-          "trend analysis",
-        ];
+        topic,
+        niche,
+        platform,
+        audience,
+        `${platform} growth`,
+        `${niche} ideas`,
+        "viral video ideas",
+        "content strategy",
+        "creator tips",
+        "trend analysis",
+      ];
 
   const hashtags =
     rawPack?.hashtags?.length > 0
       ? rawPack.hashtags
       : [
-          ...hashtagWords.map((word) => `#${word}`),
-          "#YouTubeGrowth",
-          "#ContentCreator",
-          "#ViralIdeas",
-          "#ContentStrategy",
-        ];
+        ...hashtagWords.map((word) => `#${word}`),
+        "#YouTubeGrowth",
+        "#ContentCreator",
+        "#ViralIdeas",
+        "#ContentStrategy",
+      ];
 
   const pinnedComment =
     rawPack?.pinnedComment ||
@@ -288,12 +359,222 @@ function ThumbnailPreview({ pack, imageUrl, loading = false }) {
   );
 }
 
+
+function SavedContentPackSidebar({
+  sidebarOpen,
+  setSidebarOpen,
+  savedPacks,
+  selectedPackId,
+  onSelect,
+  onClear,
+}) {
+  return (
+    <>
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 flex w-[82vw] max-w-72 flex-col border-r border-white/10 bg-[#0b0c11]/95 p-4 backdrop-blur-2xl transition-transform duration-300 sm:p-5 lg:w-72 lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+      >
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">
+              Saved Packs
+            </p>
+            <h2 className="mt-1 text-lg font-semibold text-white">
+              Content History
+            </h2>
+          </div>
+
+          <button
+            type="button"
+            className="rounded-xl p-2 text-zinc-400 lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">
+            Saved by you
+          </p>
+
+          {savedPacks.length > 0 && (
+            <button
+              type="button"
+              onClick={onClear}
+              className="rounded-full border border-red-400/20 bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-200 hover:bg-red-500/20"
+            >
+              <Trash2 className="mr-1 inline h-3.5 w-3.5" />
+              Clear
+            </button>
+          )}
+        </div>
+
+        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+          {savedPacks.length === 0 ? (
+            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 text-center">
+              <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-300/10">
+                <FileText className="h-5 w-5 text-cyan-300" />
+              </div>
+
+              <p className="text-sm font-semibold text-white">
+                No saved packs
+              </p>
+
+              <p className="mt-1 text-xs leading-5 text-zinc-500">
+                Click Save Pack on any content pack. Only saved packs will
+                appear here.
+              </p>
+            </div>
+          ) : (
+            <AnimatePresence initial={false}>
+              {savedPacks.map((item) => {
+                const isActive = item.id === selectedPackId;
+
+                return (
+                  <motion.button
+                    key={item.id}
+                    layout
+                    initial={{ opacity: 0, x: -28, scale: 0.94 }}
+                    animate={{ opacity: 1, x: 0, scale: 1 }}
+                    exit={{
+                      opacity: 0,
+                      x: -120,
+                      scale: 0.82,
+                      rotate: -8,
+                      transition: { duration: 0.24 },
+                    }}
+                    type="button"
+                    onClick={() => {
+                      onSelect(item);
+                      setSidebarOpen(false);
+                    }}
+                    className={`w-full rounded-3xl border p-4 text-left transition ${isActive
+                      ? "border-cyan-300/30 bg-cyan-300/10"
+                      : "border-white/10 bg-white/[0.04] hover:bg-white/[0.07]"
+                      }`}
+                  >
+                    <p className="line-clamp-2 text-sm font-semibold leading-6 text-white">
+                      {item.videoTitle}
+                    </p>
+
+                    <p className="mt-2 line-clamp-1 text-xs text-zinc-500">
+                      {item.topic}
+                    </p>
+
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-cyan-300/10 px-2.5 py-1 text-[10px] font-semibold text-cyan-200">
+                        {item.growth}
+                      </span>
+
+                      <span className="rounded-full border border-white/10 px-2.5 py-1 text-[10px] text-zinc-400">
+                        {item.platform}
+                      </span>
+                    </div>
+
+                    <p className="mt-3 text-[11px] text-zinc-600">
+                      {formatSavedPackTime(item.createdAt)}
+                    </p>
+                  </motion.button>
+                );
+              })}
+            </AnimatePresence>
+          )}
+        </div>
+      </aside>
+
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/60 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+    </>
+  );
+}
+
+function SavePackAnimation({ action }) {
+  if (!action) return null;
+
+  const isRemove = action === "remove";
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        key={action}
+        initial={
+          isRemove
+            ? { opacity: 1, scale: 1, x: 0, y: 0, rotate: 0 }
+            : { opacity: 0, scale: 0.9, x: 180, y: 20, rotate: 4 }
+        }
+        animate={
+          isRemove
+            ? { opacity: 0, scale: 0.7, x: -180, y: -20, rotate: -12 }
+            : { opacity: 1, scale: 1, x: 0, y: 0, rotate: 0 }
+        }
+        exit={{ opacity: 0, scale: 0.9 }}
+        transition={{ duration: isRemove ? 0.42 : 0.36, ease: "easeOut" }}
+        className={`fixed left-5 top-24 z-[10000] flex items-center gap-3 rounded-3xl border px-4 py-3 shadow-2xl backdrop-blur-2xl ${isRemove
+          ? "border-red-300/20 bg-red-500/10 text-red-100 shadow-red-950/30"
+          : "border-cyan-300/20 bg-cyan-300/10 text-cyan-100 shadow-cyan-950/30"
+          }`}
+      >
+        {isRemove ? (
+          <Trash2 className="h-4 w-4" />
+        ) : (
+          <BookmarkCheck className="h-4 w-4" />
+        )}
+
+        <span className="text-sm font-semibold">
+          {isRemove ? "Removed from saved" : "Saved to sidebar"}
+        </span>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
 export default function ContentPack() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const rawPack = location.state?.contentPack;
+  const incomingPack = location.state?.contentPack;
+  const { user } = useAuth();
+
+  const savedPackKey = React.useMemo(
+    () => getSavedContentPackKey(user?.uid),
+    [user?.uid]
+  );
+
+  const [savedPacks, setSavedPacks] = React.useState(() =>
+    loadSavedContentPacks(savedPackKey)
+  );
+
+  const [selectedRawPack, setSelectedRawPack] = React.useState(
+    incomingPack || null
+  );
+
+  const [saveAnimation, setSaveAnimation] = React.useState("");
+
+  React.useEffect(() => {
+    const items = loadSavedContentPacks(savedPackKey);
+    setSavedPacks(items);
+
+    if (!incomingPack && !selectedRawPack && items[0]?.pack) {
+      setSelectedRawPack(items[0].pack);
+    }
+  }, [savedPackKey]);
+
+  React.useEffect(() => {
+    if (incomingPack) {
+      setSelectedRawPack(incomingPack);
+    }
+  }, [incomingPack]);
+
+  const rawPack = selectedRawPack || savedPacks[0]?.pack || null;
   const pack = rawPack ? buildDynamicPack(rawPack) : null;
+  const activePackId = rawPack ? getPackId(rawPack) : "";
+  const isCurrentPackSaved = savedPacks.some((item) => item.id === activePackId);
+
   const autoThumbnailStartedRef = React.useRef(false);
 
   const [aiThumbnails, setAiThumbnails] = React.useState([]);
@@ -302,7 +583,6 @@ export default function ContentPack() {
   const [thumbnailPrompt, setThumbnailPrompt] = React.useState("");
 
   const activeThumbnail = aiThumbnails[0] || null;
-  const { user } = useAuth();
 
   const [savedThumbnails, setSavedThumbnails] = React.useState([]);
   const [savedThumbnailsLoading, setSavedThumbnailsLoading] =
@@ -317,12 +597,12 @@ export default function ContentPack() {
   const [youtubeKitMessage, setYoutubeKitMessage] = React.useState("");
   const [youtubeKitError, setYoutubeKitError] = React.useState("");
 
+
   const readyKitTitle = pack?.videoTitle || pack?.title || "";
 
   const readyKitDescription =
     pack?.description ||
-    `${pack?.insight || ""}\n\n${
-      Array.isArray(pack?.hashtags) ? pack.hashtags.join(" ") : ""
+    `${pack?.insight || ""}\n\n${Array.isArray(pack?.hashtags) ? pack.hashtags.join(" ") : ""
     }`;
 
   const readyKitHashtags = Array.isArray(pack?.hashtags)
@@ -363,6 +643,18 @@ export default function ContentPack() {
   React.useEffect(() => {
     loadSavedThumbnails();
   }, [loadSavedThumbnails]);
+
+  React.useEffect(() => {
+    autoThumbnailStartedRef.current = false;
+
+    setAiThumbnails([]);
+    setThumbnailError("");
+    setThumbnailPrompt("");
+    setThumbnailSaveStatus("");
+    setThumbnailSaveError("");
+    setSavingThumbnailId("");
+    setFullscreenImage("");
+  }, [activePackId]);
 
   const handleGenerateThumbnail = React.useCallback(
     async ({ auto = false } = {}) => {
@@ -442,10 +734,10 @@ export default function ContentPack() {
           current.map((item) =>
             item.imageUrl === thumbnail.imageUrl
               ? {
-                  ...item,
-                  isSaved: true,
-                  savedId: savedItem.id,
-                }
+                ...item,
+                isSaved: true,
+                savedId: savedItem.id,
+              }
               : item
           )
         );
@@ -507,6 +799,81 @@ export default function ContentPack() {
     handleGenerateThumbnail({ auto: true });
   }, [handleGenerateThumbnail, pack]);
 
+
+  const handleToggleSavePack = () => {
+    if (!rawPack) return;
+
+    const currentId = getPackId(rawPack);
+
+    if (isCurrentPackSaved) {
+      const next = savedPacks.filter((item) => item.id !== currentId);
+
+      setSaveAnimation("remove");
+      setSavedPacks(next);
+      persistSavedContentPacks(savedPackKey, next);
+
+      setTimeout(() => {
+        setSaveAnimation("");
+      }, 500);
+
+      return;
+    }
+
+    const savedItem = createSavedPackItem(rawPack);
+    const next = [
+      savedItem,
+      ...savedPacks.filter((item) => item.id !== savedItem.id),
+    ].slice(0, SAVED_CONTENT_PACK_LIMIT);
+
+    setSaveAnimation("save");
+    setSavedPacks(next);
+    persistSavedContentPacks(savedPackKey, next);
+
+    setTimeout(() => {
+      setSaveAnimation("");
+    }, 900);
+  };
+
+  const handleSelectSavedPack = (item) => {
+    if (!item?.pack) return;
+
+    setSelectedRawPack(item.pack);
+
+    navigate("/content-pack", {
+      replace: true,
+      state: {
+        contentPack: item.pack,
+      },
+    });
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  };
+
+  const handleClearSavedPacks = async () => {
+    const confirmed = window.appConfirm
+      ? await window.appConfirm({
+        type: "delete",
+        title: "Clear saved packs?",
+        message: "This will remove all saved content packs from this device.",
+        confirmText: "Yes, Clear",
+        cancelText: "Cancel",
+      })
+      : window.confirm("Clear saved content packs?");
+
+    if (!confirmed) return;
+
+    setSaveAnimation("remove");
+    setSavedPacks([]);
+    persistSavedContentPacks(savedPackKey, []);
+
+    setTimeout(() => {
+      setSaveAnimation("");
+    }, 500);
+  };
+
   const handleDownloadThumbnail = () => {
     const imageUrl = readyKitThumbnailUrl || activeThumbnail?.imageUrl;
 
@@ -519,9 +886,8 @@ export default function ContentPack() {
     link.download = `${String(pack.topic || "ai-thumbnail")
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)/g, "")}-thumbnail.${
-      activeThumbnail?.outputFormat || "jpeg"
-    }`;
+      .replace(/(^-|-$)/g, "")}-thumbnail.${activeThumbnail?.outputFormat || "jpeg"
+      }`;
 
     document.body.appendChild(link);
     link.click();
@@ -530,8 +896,20 @@ export default function ContentPack() {
 
   if (!pack) {
     return (
-      <DashboardLayout eyebrow="Content Pack" title="No content pack found">
-        <div className="flex min-h-[60vh] items-center justify-center">
+      <DashboardLayout
+        eyebrow="Content Pack"
+        title="No content pack found"
+        customSidebar={({ sidebarOpen, setSidebarOpen }) => (
+          <SavedContentPackSidebar
+            sidebarOpen={sidebarOpen}
+            setSidebarOpen={setSidebarOpen}
+            savedPacks={savedPacks}
+            selectedPackId={activePackId}
+            onSelect={handleSelectSavedPack}
+            onClear={handleClearSavedPacks}
+          />
+        )}
+      >        <div className="flex min-h-[60vh] items-center justify-center">
           <Card className="w-full max-w-xl border-white/10 bg-white/[0.04]">
             <CardContent className="p-8 text-center">
               <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-cyan-300/10">
@@ -562,15 +940,39 @@ export default function ContentPack() {
   }
 
   return (
-    <DashboardLayout eyebrow="Content Pack" title="Ready-to-record content">
+    <DashboardLayout
+      eyebrow="Content Pack"
+      title="Ready-to-record content"
+      customSidebar={({ sidebarOpen, setSidebarOpen }) => (
+        <SavedContentPackSidebar
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+          savedPacks={savedPacks}
+          selectedPackId={activePackId}
+          onSelect={handleSelectSavedPack}
+          onClear={handleClearSavedPacks}
+        />
+      )}
+    >
+
+      <SavePackAnimation action={saveAnimation} />
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <Button
           type="button"
-          onClick={() => navigate("/dashboard")}
-          className="h-10 w-fit rounded-full border border-white/10 bg-white/[0.05] px-4 text-sm text-zinc-200 hover:bg-white/[0.1]"
+          onClick={handleToggleSavePack}
+          disabled={!rawPack}
+          className={`h-10 w-fit rounded-full px-4 text-sm font-semibold ${isCurrentPackSaved
+            ? "border border-cyan-300/20 bg-cyan-300/10 text-cyan-100 hover:bg-cyan-300/20"
+            : "border border-white/10 bg-white/[0.05] text-zinc-200 hover:bg-white/[0.1]"
+            }`}
         >
-          <ArrowLeft className="h-4 w-4" />
-          Back
+          {isCurrentPackSaved ? (
+            <BookmarkCheck className="h-4 w-4" />
+          ) : (
+            <Bookmark className="h-4 w-4" />
+          )}
+
+          {isCurrentPackSaved ? "Saved" : "Save Pack"}
         </Button>
 
         <div className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-4 py-2 text-xs font-semibold text-cyan-200">
@@ -586,7 +988,7 @@ export default function ContentPack() {
               Dynamic Premium Content Pack
             </div>
 
-            <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-5xl">
+            <h1 className="text-2xl font-semibold leading-tight tracking-tight text-white sm:text-4xl lg:text-5xl">
               {pack.videoTitle}
             </h1>
 
@@ -701,16 +1103,16 @@ export default function ContentPack() {
                       !activeThumbnail?.imageUrl ||
                       activeThumbnail?.isSaved ||
                       savingThumbnailId ===
-                        (activeThumbnail?.localId ||
-                          activeThumbnail?.generatedAt ||
-                          activeThumbnail?.imageUrl)
+                      (activeThumbnail?.localId ||
+                        activeThumbnail?.generatedAt ||
+                        activeThumbnail?.imageUrl)
                     }
                     className="h-11 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-5 text-sm font-semibold text-emerald-200 hover:bg-emerald-400/20 sm:w-fit"
                   >
                     {savingThumbnailId ===
-                    (activeThumbnail?.localId ||
-                      activeThumbnail?.generatedAt ||
-                      activeThumbnail?.imageUrl) ? (
+                      (activeThumbnail?.localId ||
+                        activeThumbnail?.generatedAt ||
+                        activeThumbnail?.imageUrl) ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <Sparkles className="h-4 w-4" />

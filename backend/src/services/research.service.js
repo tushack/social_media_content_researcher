@@ -1119,6 +1119,7 @@ function buildGeminiContentPackPrompt(payload, fallbackPack) {
   const niche = cleanString(payload?.niche, fallbackPack.niche);
   const platform = cleanString(payload?.platform, fallbackPack.platform);
   const audience = cleanString(payload?.audience, fallbackPack.audience);
+  const variantSeed = cleanString(payload?.variantSeed, `${Date.now()}`);
 
   return `
 You are an expert social media content strategist for creators.
@@ -1133,6 +1134,8 @@ Audience: ${audience}
 Growth signal: ${growth}
 Competition: ${competition}
 Insight: ${insight}
+Generation variant seed: ${variantSeed}
+Generation mode: ${payload?.generationMode || "fresh"}
 
 IMPORTANT RULES:
 - Return ONLY valid JSON.

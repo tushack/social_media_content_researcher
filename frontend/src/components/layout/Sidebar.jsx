@@ -148,11 +148,15 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
       >
         <div className="mb-7 flex items-center justify-between sm:mb-9">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] sm:h-11 sm:w-11">
-              <img
-                src="/favicon.png"
-                alt="Viralo AI"
-                className="h-[82%] w-[82%] object-contain"
+            <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-transparent sm:h-[52px] sm:w-[52px]">
+              <video
+                src="/logo.mp4"
+                className="absolute left-1/2 top-1/2 h-[135%] w-[135%] -translate-x-1/2 -translate-y-1/2 object-cover"
+                autoPlay
+                muted
+                loop
+                playsInline
+                aria-label="Viralo AI"
               />
             </div>
 

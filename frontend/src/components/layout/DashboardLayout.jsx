@@ -9,6 +9,7 @@ export default function DashboardLayout({
   eyebrow = "Research Dashboard",
   title = "Discover your next viral video",
   onNewScan,
+  customSidebar = null,
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { authLoading } = useAuth();
@@ -43,8 +44,11 @@ export default function DashboardLayout({
         <div className="absolute bottom-[-16rem] left-[-8rem] h-[22rem] w-[22rem] rounded-full bg-blue-500/10 blur-3xl sm:h-[28rem] sm:w-[28rem]" />
       </div>
 
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-
+      {customSidebar ? (
+        customSidebar({ sidebarOpen, setSidebarOpen })
+      ) : (
+        <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+      )}
       <main className="relative z-10 min-w-0 lg:pl-72">
         <Header
           setSidebarOpen={setSidebarOpen}
