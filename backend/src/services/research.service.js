@@ -1253,8 +1253,7 @@ function buildThumbnailGenerationPrompt({ pack, prompt, variant = 1 }) {
   return [
     `Generate a professional 16:9 YouTube banner/thumbnail background image for this topic: ${topic}.`,
     `Style: ${visualStyle}.`,
-    "Important: Do not add any text, words, letters, numbers, captions, subtitles, labels, logo, watermark, signature, UI text, fake text, or readable typography inside the image.",
-    "Create only a clean visual background with strong composition, premium lighting, modern creator-economy design, abstract visuals, charts without numbers, glow effects, and enough empty space.",
+    "Important: Generate only a clean YouTube thumbnail background image. Do not add any text, words, letters, numbers, captions, subtitles, logo, watermark, signature, UI text, or readable typography inside the image.", "Create only a clean visual background with strong composition, premium lighting, modern creator-economy design, abstract visuals, charts without numbers, glow effects, and enough empty space.",
     "The image should work as a banner background where text can be added later by the frontend/editor.",
     extraPrompt ? `User extra direction: ${extraPrompt}. Do not include text in the image.` : "",
   ]
@@ -1263,8 +1262,8 @@ function buildThumbnailGenerationPrompt({ pack, prompt, variant = 1 }) {
 }
 
 async function generateThumbnailResult({ pack, prompt, variant }) {
-  if (!process.env.HF_TOKEN) {
-    throw new Error("HF_TOKEN is not configured on the backend");
+  if (!process.env.GEMINI_API_KEY) {
+    throw new Error("GEMINI_API_KEY is not configured on the backend");
   }
 
   const finalPrompt = buildThumbnailGenerationPrompt({
@@ -1273,69 +1272,78 @@ async function generateThumbnailResult({ pack, prompt, variant }) {
     variant,
   });
 
-  const model =
-    process.env.HF_IMAGE_MODEL || "ideogram-ai/ideogram-4-fp8";
+  const model = process.env.GEMINI_IMAGE_MODEL || "gemini-3.1-flash-image";
 
   const response = await fetch(
-    `${process.env.HF_BASE_URL || "https://router.huggingface.co/hf-inference/models"}/${model}`,
+    `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent`,
     {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${process.env.HF_TOKEN}`,
+        "x-goog-api-key": process.env.GEMINI_API_KEY,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        inputs: finalPrompt,
-        parameters: {
-          width: 1536,
-          height: 864,
-        },
+        contents: [
+          {
+            parts: [
+              {
+                text: finalPrompt,
+              },
+            ],
+          },
+        ],
       }),
     }
   );
 
-  const contentType = response.headers.get("content-type") || "";
-  const buffer = await response.arrayBuffer();
+  const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    const errorText = Buffer.from(buffer).toString("utf8");
-
-    let errorMessage = "Failed to generate AI thumbnail";
-
-    try {
-      const parsedError = JSON.parse(errorText);
-      errorMessage =
-        parsedError.error ||
-        parsedError.message ||
-        errorMessage;
-    } catch {
-      errorMessage = errorText || errorMessage;
-    }
-
-    throw new Error(errorMessage);
+    throw new Error(
+      data?.error?.message || data?.message || "Failed to generate Gemini thumbnail"
+    );
   }
 
-  if (contentType.includes("application/json")) {
-    const jsonText = Buffer.from(buffer).toString("utf8");
-    const data = JSON.parse(jsonText);
+  const parts = data?.candidates?.[0]?.content?.parts || [];
 
-    if (data.error) {
-      throw new Error(data.error);
-    }
+  const imagePart = parts.find((part) => {
+    return part?.inlineData?.data || part?.inline_data?.data;
+  });
 
-    throw new Error("Hugging Face did not return image data");
+  const imageBase64 =
+    imagePart?.inlineData?.data || imagePart?.inline_data?.data || "";
+
+  const mimeType =
+    imagePart?.inlineData?.mimeType ||
+    imagePart?.inline_data?.mime_type ||
+    "image/png";
+
+  if (!imageBase64) {
+    const textResponse = parts
+      .map((part) => part.text || "")
+      .filter(Boolean)
+      .join(" ");
+
+    throw new Error(
+      textResponse || "Gemini did not return image data. Try a simpler prompt."
+    );
   }
 
-  const imageBase64 = Buffer.from(buffer).toString("base64");
+  const outputFormat = mimeType.includes("jpeg") || mimeType.includes("jpg")
+    ? "jpeg"
+    : "png";
+
+  console.log("✅ Gemini thumbnail generated successfully");
 
   return {
     imageBase64,
-    imageUrl: `data:image/png;base64,${imageBase64}`,
+    imageUrl: `data:${mimeType};base64,${imageBase64}`,
     prompt: finalPrompt,
     model,
-    size: "1536x864",
-    outputFormat: "png",
+    size: "gemini-native",
+    outputFormat,
     generatedAt: new Date().toISOString(),
+    source: "gemini-image",
   };
 }
 

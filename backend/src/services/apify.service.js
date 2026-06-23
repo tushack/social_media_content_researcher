@@ -43,7 +43,15 @@ function extractYouTubeHandle(value) {
   return "";
 }
 
-async function runApifyYouTubeSearch({ query, maxResults = 10 }) {
+async function runApifyYouTubeSearch({
+  query,
+  maxResults = 10,
+  country = "in",
+  language = "en",
+  sortBy = "relevance",
+  uploadDate = "any",
+  includeShorts = false,
+}) {
   const token = getApifyToken();
   const actorId = getYouTubeActorId();
   const actorPath = getApifyActorPath(actorId);
@@ -54,11 +62,12 @@ async function runApifyYouTubeSearch({ query, maxResults = 10 }) {
     youtubeHandles: [],
     getTrending: false,
     maxResults,
-    includeShorts: false,
+    includeShorts,
     fetchChannelInfo: false,
-    country: "in",
-    language: "en",
-    sortBy: "relevance",
+    country,
+    language,
+    sortBy,
+    uploadDate,
   };
 
   const url = `${APIFY_API_BASE_URL}/acts/${actorPath}/run-sync-get-dataset-items?timeout=180&memory=1024&clean=true`;
@@ -91,6 +100,61 @@ async function runApifyYouTubeSearch({ query, maxResults = 10 }) {
   if (Array.isArray(data) && data.length > 0) {
     console.log("First Apify search item:", JSON.stringify(data[0], null, 2));
   }
+
+  return Array.isArray(data) ? data : [];
+}
+
+async function runApifyYouTubeTrending({
+  maxResults = 36,
+  country = "in",
+  language = "en",
+}) {
+  const token = getApifyToken();
+  const actorId = getYouTubeActorId();
+  const actorPath = getApifyActorPath(actorId);
+
+  const input = {
+    searchQueries: [],
+    startUrls: [],
+    youtubeHandles: [],
+    getTrending: true,
+    maxResults,
+    includeShorts: false,
+    fetchChannelInfo: false,
+    country,
+    language,
+  };
+
+  const url = `${APIFY_API_BASE_URL}/acts/${actorPath}/run-sync-get-dataset-items?timeout=180&memory=1024&clean=true`;
+
+  console.log("Running Apify trending actor:", actorId);
+  console.log("Apify trending input:", JSON.stringify(input, null, 2));
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(input),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    console.error("Apify trending API error:", JSON.stringify(data, null, 2));
+
+    throw new Error(
+      data?.error?.message ||
+        "Failed to fetch live YouTube trending data from Apify."
+    );
+  }
+
+  console.log(
+    "Apify trending items found:",
+    Array.isArray(data) ? data.length : 0
+  );
 
   return Array.isArray(data) ? data : [];
 }
@@ -156,5 +220,6 @@ async function runApifyYouTubeChannelAnalysis({ channelUrl, maxResults = 30 }) {
 
 module.exports = {
   runApifyYouTubeSearch,
+  runApifyYouTubeTrending,
   runApifyYouTubeChannelAnalysis,
 };

@@ -14,6 +14,7 @@ import ContentPack from "./pages/ContentPack";
 import SavedThumbnails from "./pages/SavedThumbnails";
 import Profile from "./pages/Profile";
 import DataPrivacy from "./pages/DataPrivacy";
+import ViralCheck from "./pages/ViralCheck";
 
 function ProtectedRoute({ children }) {
   const { user, authLoading } = useAuth();
@@ -125,6 +126,15 @@ function App() {
           element={
             <ProtectedRoute>
               <Profile />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/viral-check"
+          element={
+            <ProtectedRoute>
+              <ViralCheck />
             </ProtectedRoute>
           }
         />

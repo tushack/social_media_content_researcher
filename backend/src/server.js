@@ -7,6 +7,9 @@ const researchRoutes = require("./routes/research.routes");
 const savedIdeasRoutes = require("./routes/savedIdeas.routes");
 const dataPrivacyRoutes = require("./routes/dataPrivacy.routes");
 const youtubeRoutes = require("./routes/youtube.routes");
+const viralCheckRoutes = require("./routes/viralCheck.routes");
+const trendsRoutes = require("./routes/trends.routes");
+
 const {
   startDataPrivacyPurgeCron,
 } = require("./jobs/dataPrivacyPurgeCron");
@@ -83,6 +86,9 @@ app.use("/api/research", researchRoutes);
 app.use("/api/saved-ideas", savedIdeasRoutes);
 app.use("/api/data-privacy", dataPrivacyRoutes);
 app.use("/api/youtube", youtubeRoutes);
+app.use("/api/viral-check", viralCheckRoutes);
+app.use("/api/trends", trendsRoutes);
+
 
 const PORT = process.env.PORT || 5000;
 

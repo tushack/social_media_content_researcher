@@ -262,3 +262,58 @@ export async function applyYoutubeReadyKit(payload) {
 
   return data;
 }
+
+export async function analyzeViralPotential(payload) {
+  const response = await fetch(`${API_BASE_URL}/viral-check/analyze`, {
+    method: "POST",
+    headers: await getAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.message || "Failed to analyze viral potential");
+  }
+
+  return data;
+}
+
+
+export async function getTrendFeed(filters = {}) {
+  const params = new URLSearchParams();
+
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && String(value).trim() !== "") {
+      params.set(key, String(value));
+    }
+  });
+
+  const response = await fetch(`${API_BASE_URL}/trends/feed?${params}`, {
+    headers: await getAuthHeaders(),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.message || "Failed to load live trends.");
+  }
+
+  return data;
+}
+
+export async function searchTrendTopics(payload) {
+  const response = await fetch(`${API_BASE_URL}/trends/search`, {
+    method: "POST",
+    headers: await getAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.message || "Failed to search live trends.");
+  }
+
+  return data;
+}

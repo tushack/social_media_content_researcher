@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useEffect, useState } from "react";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
 import { Loader2 } from "lucide-react";
@@ -13,6 +13,20 @@ export default function DashboardLayout({
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { authLoading } = useAuth();
+
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    return localStorage.getItem("viraloSidebarCollapsed") === "true";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("viraloSidebarCollapsed", String(sidebarCollapsed));
+  }, [sidebarCollapsed]);
+
+  const mainPaddingClass = customSidebar
+    ? "lg:pl-72"
+    : sidebarCollapsed
+      ? "lg:pl-24"
+      : "lg:pl-72";
 
   if (authLoading) {
     return (
@@ -45,11 +59,24 @@ export default function DashboardLayout({
       </div>
 
       {customSidebar ? (
-        customSidebar({ sidebarOpen, setSidebarOpen })
+        customSidebar({
+          sidebarOpen,
+          setSidebarOpen,
+          sidebarCollapsed,
+          setSidebarCollapsed,
+        })
       ) : (
-        <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+        <Sidebar
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+          sidebarCollapsed={sidebarCollapsed}
+          setSidebarCollapsed={setSidebarCollapsed}
+        />
       )}
-      <main className="relative z-10 min-w-0 lg:pl-72">
+
+      <main
+        className={`relative z-10 min-w-0 transition-all duration-300 ${mainPaddingClass}`}
+      >
         <Header
           setSidebarOpen={setSidebarOpen}
           eyebrow={eyebrow}

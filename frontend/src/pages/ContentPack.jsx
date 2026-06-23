@@ -367,6 +367,7 @@ function SavedContentPackSidebar({
   selectedPackId,
   onSelect,
   onClear,
+  onBack,
 }) {
   return (
     <>
@@ -392,6 +393,14 @@ function SavedContentPackSidebar({
             <X className="h-5 w-5" />
           </button>
         </div>
+        <button
+          type="button"
+          onClick={onBack}
+          className="mb-4 flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left text-sm font-medium text-zinc-200 transition hover:bg-white/[0.08] hover:text-white"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Dashboard
+        </button>
 
         <div className="mb-3 flex items-center justify-between">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">
@@ -907,6 +916,8 @@ export default function ContentPack() {
             selectedPackId={activePackId}
             onSelect={handleSelectSavedPack}
             onClear={handleClearSavedPacks}
+            onBack={() => navigate("/dashboard")}
+
           />
         )}
       >        <div className="flex min-h-[60vh] items-center justify-center">
@@ -951,6 +962,8 @@ export default function ContentPack() {
           selectedPackId={activePackId}
           onSelect={handleSelectSavedPack}
           onClear={handleClearSavedPacks}
+          onBack={() => navigate("/dashboard")}
+
         />
       )}
     >

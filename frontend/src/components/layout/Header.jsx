@@ -1,13 +1,31 @@
 import React from "react";
 import { Menu, Zap } from "lucide-react";
 import { Button } from "../ui/button";
+import { useNavigate } from "react-router-dom";
+
+
 
 export default function Header({
+
   setSidebarOpen,
   eyebrow = "Research Dashboard",
   title = "Discover your next viral video",
   onNewScan,
 }) {
+
+  const navigate = useNavigate();
+  const handleNewScanClick = () => {
+    if (onNewScan) {
+      onNewScan();
+      return;
+    }
+
+    navigate("/dashboard", {
+      state: {
+        forceNewScan: true,
+      },
+    });
+  };
   return (
     <header className="sticky top-0 z-20 flex min-h-16 items-center justify-between gap-3 border-b border-white/10 bg-[#08090d]/75 px-4 py-3 backdrop-blur-2xl sm:min-h-20 sm:px-6 lg:px-8">
       <div className="flex min-w-0 items-center gap-3">
@@ -32,10 +50,8 @@ export default function Header({
 
       <Button
         type="button"
-        onClick={onNewScan}
-        className="hidden h-11 shrink-0 rounded-full bg-cyan-300 px-5 text-xs font-semibold text-black shadow-lg shadow-cyan-500/15 hover:bg-cyan-200 sm:inline-flex"
+        onClick={handleNewScanClick}
       >
-        <Zap className="h-4 w-4" />
         New Scan
       </Button>
     </header>

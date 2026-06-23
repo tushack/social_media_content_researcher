@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
+import ContentCalendarWidget from "../components/calendar/ContentCalendarWidget";
 import { useAuth } from "../context/AuthContext";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -693,6 +694,28 @@ export default function Dashboard() {
     setContentPackLoading("");
   };
 
+  useEffect(() => {
+    if (!location.state?.forceNewScan) {
+      return;
+    }
+
+    localStorage.removeItem(storageKey);
+    localStorage.removeItem(CURRENT_RESEARCH_KEY);
+
+    setNiche("");
+    setSelectedPlatform("YouTube");
+    setSelectedAudience("New creators");
+    setApiData(null);
+    setError("");
+    setSavingText("");
+    setContentPackLoading("");
+
+    navigate("/dashboard", {
+      replace: true,
+      state: {},
+    });
+  }, [location.state?.forceNewScan, navigate, storageKey]);
+
   const handleSaveIdea = async ({ type, content, platform, niche }) => {
     if (!requireAuth()) {
       return;
@@ -971,6 +994,8 @@ export default function Dashboard() {
               value={dashboardStats.savedIdeasCount}
               caption={`${dashboardStats.competitorsCount} competitors tracked`}
             />
+
+
           </section>
 
           {!dashboardLoading && !hasResearchData && (
@@ -1352,6 +1377,11 @@ export default function Dashboard() {
           )}
         </>
       )}
+      <ContentCalendarWidget
+        userId={user?.uid}
+        defaultTopic={activeNiche}
+        variant="dashboard-floating"
+      />
     </DashboardLayout>
   );
 }
