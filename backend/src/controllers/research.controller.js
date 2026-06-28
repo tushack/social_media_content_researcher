@@ -13,6 +13,10 @@ const {
   getDailyNicheIdeasService,
 } = require("../services/dailyIdeas.service");
 
+const {
+  getTopYouTubeChannelsForNiche,
+} = require("../services/youtubeTopChannels.service");
+
 async function generateResearch(req, res) {
   try {
     const { niche, platform, audience } = req.body;
@@ -65,6 +69,31 @@ async function getDailyNicheIdeas(req, res) {
   }
 }
 
+async function getTopYouTubeChannels(req, res) {
+  try {
+    const { niche, limit } = req.query || {};
+
+    if (!String(niche || "").trim()) {
+      return res.status(400).json({
+        message: "Niche is required to find YouTube channels.",
+      });
+    }
+
+    const result = await getTopYouTubeChannelsForNiche({
+      niche: String(niche).trim(),
+      limit: Number(limit) || 4,
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error("Top YouTube channels error:", error);
+
+    return res.status(error.statusCode || 500).json({
+      message: error.message || "Failed to fetch YouTube channels.",
+    });
+  }
+}
+
 async function getResearchHistory(req, res) {
   try {
     const data = await getResearchHistoryService(req.user.uid);
@@ -81,25 +110,24 @@ async function getResearchHistory(req, res) {
 
 async function analyzeCompetitorChannel(req, res) {
   try {
-    const { channelUrl } = req.body;
+    const { channelUrl } = req.body || {};
 
-    if (!channelUrl) {
+    if (!String(channelUrl || "").trim()) {
       return res.status(400).json({
-        message: "Channel URL is required",
+        message: "Channel URL, channel ID, or @handle is required.",
       });
     }
 
     const result = await analyzeCompetitorChannelResult({
-      channelUrl,
-      userId: req.user.uid,
+      channelUrl: String(channelUrl).trim(),
     });
 
     return res.status(200).json(result);
   } catch (error) {
     console.error("Analyze competitor channel error:", error);
 
-    return res.status(500).json({
-      message: error.message || "Failed to analyze competitor channel",
+    return res.status(error.statusCode || 500).json({
+      message: error.message || "Failed to analyze competitor channel.",
     });
   }
 }
@@ -146,6 +174,7 @@ async function generateThumbnail(req, res) {
 module.exports = {
   generateResearch,
   getDailyNicheIdeas,
+  getTopYouTubeChannels,
   getResearchHistory,
   analyzeCompetitorChannel,
   createContentPack,

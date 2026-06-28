@@ -27,10 +27,13 @@ import {
   getDailyNicheIdeas,
   getResearchHistory,
   getSavedIdeas,
+  getTopYouTubeChannels,
+  getTrendFeed,
   saveIdea,
 } from "../lib/api";
 
 const CURRENT_RESEARCH_KEY = "viralMindCurrentResearch";
+const DASHBOARD_HEADLINE_WORDS = ["Discover something new today"];
 
 function getCurrentResearchKey(userId) {
   return userId ? `${CURRENT_RESEARCH_KEY}:${userId}` : CURRENT_RESEARCH_KEY;
@@ -38,6 +41,13 @@ function getCurrentResearchKey(userId) {
 
 function getList(value) {
   return Array.isArray(value) ? value.filter(Boolean) : [];
+}
+
+function isGroqDashboardData(value) {
+  return Boolean(
+    value &&
+    (value.source === "groq" || value?.meta?.aiProvider === "groq")
+  );
 }
 
 function normalizeApiList(response) {
@@ -128,6 +138,42 @@ function formatAverageGrowth(topics) {
   );
 
   return `${average >= 0 ? "+" : ""}${average}%`;
+}
+
+function getDashboardLiveTopics(feed) {
+  const sections = Array.isArray(feed?.sections) ? feed.sections : [];
+
+  const trendSection =
+    sections.find(
+      (section) =>
+        section?.key === "trending_now" &&
+        Array.isArray(section?.items) &&
+        section.items.length
+    ) ||
+    sections.find(
+      (section) =>
+        Array.isArray(section?.items) &&
+        section.items.length
+    );
+
+  return getList(trendSection?.items)
+    .slice(0, 4)
+    .map((item, index) => ({
+      id: item?.id || item?.url || `live-trend-${index}`,
+      topic: getTextValue(item?.topic, "Untitled trend"),
+      growth: getTextValue(item?.momentum, "Trending now"),
+      competition: getTextValue(item?.competition, "Medium"),
+      difficulty: getTextValue(item?.contentType, "Video"),
+      insight: getTextValue(
+        item?.insight,
+        "Live YouTube trend signal from the latest feed."
+      ),
+      niche: getTextValue(item?.sourceQuery, "Live YouTube trends"),
+      platform: getTextValue(item?.platform, "YouTube"),
+      url: getTextValue(item?.url, ""),
+      thumbnail: getTextValue(item?.thumbnail, ""),
+      source: "live-trends",
+    }));
 }
 
 function sameResearchData(first, second) {
@@ -426,13 +472,18 @@ export default function Dashboard() {
   const [researchHistory, setResearchHistory] = useState([]);
   const [savedIdeasCount, setSavedIdeasCount] = useState(0);
   const [dashboardError, setDashboardError] = useState("");
-
+  const [liveTrendTopics, setLiveTrendTopics] = useState([]);
+  const [youtubeCompetitors, setYoutubeCompetitors] = useState([]);
+  const [competitorsLoading, setCompetitorsLoading] = useState(false);
+  const [competitorsError, setCompetitorsError] = useState("");
   const [niche, setNiche] = useState("");
   const [loading, setLoading] = useState(false);
   const [apiData, setApiData] = useState(null);
   const [error, setError] = useState("");
   const [savingText, setSavingText] = useState("");
 
+  // Restore the current scan from navigation state or browser storage.
+  // This does not call the API and therefore keeps the UI responsive.
   useEffect(() => {
     if (authLoading) return;
 
@@ -443,7 +494,12 @@ export default function Dashboard() {
       setApiData(null);
       setResearchHistory([]);
       setSavedIdeasCount(0);
+      setLiveTrendTopics([]);
+      setYoutubeCompetitors([]);
+      setCompetitorsLoading(false);
+      setCompetitorsError("");
       setDashboardError("");
+      setDashboardLoading(false);
       return;
     }
 
@@ -478,94 +534,133 @@ export default function Dashboard() {
       localStorage.getItem(storageKey) ||
       localStorage.getItem(CURRENT_RESEARCH_KEY);
 
-    if (savedScan) {
-      try {
-        const parsedScan = JSON.parse(savedScan);
+    if (!savedScan) {
+      return;
+    }
 
-        setNiche(parsedScan.niche || "");
-        setSelectedPlatform(parsedScan.platform || "YouTube");
-        setSelectedAudience(parsedScan.audience || "New creators");
-        setApiData(parsedScan.data || null);
-      } catch {
-        localStorage.removeItem(storageKey);
-        localStorage.removeItem(CURRENT_RESEARCH_KEY);
-      }
+    try {
+      const parsedScan = JSON.parse(savedScan);
+
+      setNiche(parsedScan.niche || "");
+      setSelectedPlatform(parsedScan.platform || "YouTube");
+      setSelectedAudience(parsedScan.audience || "New creators");
+      setApiData(parsedScan.data || null);
+    } catch {
+      localStorage.removeItem(storageKey);
+      localStorage.removeItem(CURRENT_RESEARCH_KEY);
     }
   }, [authLoading, location.state, storageKey, user]);
 
+  // Load each source independently. A failed history/saved-ideas request must
+  // never prevent the live trends or the rest of the dashboard from rendering.
   useEffect(() => {
     if (authLoading) return undefined;
 
     if (!user) {
-      setResearchHistory([]);
-      setSavedIdeasCount(0);
       setDashboardLoading(false);
-      setDashboardError("");
       return undefined;
     }
 
     let isMounted = true;
 
     async function loadDashboardData() {
+      setDashboardLoading(true);
+      setDashboardError("");
+
       try {
-        setDashboardLoading(true);
-        setDashboardError("");
-
-        const [dailyResponse, historyResponse, savedIdeasResponse] =
-          await Promise.all([
-            getDailyNicheIdeas({
-              niche: "",
-              platform: selectedPlatform,
-              audience: selectedAudience,
-              limit: 20,
-              forceRefresh: false,
-            }),
-            getResearchHistory(),
-            getSavedIdeas(),
-          ]);
-
-        const historyList = normalizeApiList(historyResponse);
-        const savedIdeasList = normalizeApiList(savedIdeasResponse);
+        const [
+          dailyResult,
+          historyResult,
+          savedIdeasResult,
+          trendsResult,
+        ] = await Promise.allSettled([
+          getDailyNicheIdeas({
+            niche: "",
+            platform: selectedPlatform,
+            audience: selectedAudience,
+            limit: 20,
+            forceRefresh: false,
+          }),
+          getResearchHistory(),
+          getSavedIdeas(),
+          getTrendFeed({
+            platform: selectedPlatform,
+            region: "India",
+            timeRange: "7d",
+            contentType: "All",
+            momentum: "All",
+            limit: 12,
+          }),
+        ]);
 
         if (!isMounted) return;
+
+        const dailyResponse =
+          dailyResult.status === "fulfilled" ? dailyResult.value : null;
+
+        const historyList =
+          historyResult.status === "fulfilled"
+            ? normalizeApiList(historyResult.value)
+            : [];
+
+        const savedIdeasList =
+          savedIdeasResult.status === "fulfilled"
+            ? normalizeApiList(savedIdeasResult.value)
+            : [];
+
+        const trendFeed =
+          trendsResult.status === "fulfilled" ? trendsResult.value : null;
+
+        const liveTopics = getDashboardLiveTopics(trendFeed);
 
         setResearchHistory(historyList);
         setSavedIdeasCount(savedIdeasList.length);
+        setLiveTrendTopics(liveTopics);
 
-        const hasCachedResearch = Boolean(
-          localStorage.getItem(storageKey) ||
-          localStorage.getItem(CURRENT_RESEARCH_KEY)
-        );
-        const hasNavigationResearch = Boolean(location.state?.historyScan);
+        const hasHistoryScan = Boolean(location.state?.historyScan);
         const dailyTopics = getList(dailyResponse?.trendingTopics);
 
-        if (!hasCachedResearch && !hasNavigationResearch && dailyTopics.length) {
-          const dailyNiche = dailyResponse?.meta?.niche || dailyResponse?.niche || "";
-          const dailyPlatform =
-            dailyResponse?.meta?.platform || dailyResponse?.platform || "YouTube";
-          const dailyAudience =
-            dailyResponse?.meta?.audience || dailyResponse?.audience || "New creators";
-
-          setNiche(dailyNiche);
-          setSelectedPlatform(dailyPlatform);
-          setSelectedAudience(dailyAudience);
+        // These dashboard cards are Groq-only. Replace any old locally cached
+        // Apify/fallback scan with the latest Groq response unless the user
+        // intentionally opened a specific item from History.
+        if (!hasHistoryScan && isGroqDashboardData(dailyResponse) && dailyTopics.length > 0) {
           setApiData(dailyResponse);
 
-          localStorage.setItem(
-            storageKey,
-            JSON.stringify({
-              niche: dailyNiche,
-              platform: dailyPlatform,
-              audience: dailyAudience,
-              data: dailyResponse,
-              createdAt:
-                dailyResponse?.meta?.generatedAt || new Date().toISOString(),
-            })
+          if (dailyResponse?.niche) {
+            setNiche((current) => current.trim() || dailyResponse.niche);
+          }
+        }
+
+        const errors = [
+          dailyResult,
+          historyResult,
+          savedIdeasResult,
+          trendsResult,
+        ]
+          .filter((result) => result.status === "rejected")
+          .map((result) => result.reason?.message)
+          .filter(Boolean);
+
+        const hasVisibleData =
+          dailyTopics.length > 0 ||
+          historyList.length > 0 ||
+          liveTopics.length > 0;
+
+        if (dailyResult.status === "rejected") {
+          setDashboardError(
+            dailyResult.reason?.message || "Groq could not generate dashboard ideas."
+          );
+        } else if (!hasVisibleData && errors.length > 0) {
+          setDashboardError(
+            errors[0] || "Failed to load dashboard data."
           );
         }
       } catch (err) {
-        if (!isMounted) return;
-        setDashboardError(err.message || "Failed to load dashboard data.");
+        if (isMounted) {
+          setDashboardError(
+            err.message || "Failed to load dashboard data."
+          );
+        }
       } finally {
         if (isMounted) {
           setDashboardLoading(false);
@@ -578,50 +673,120 @@ export default function Dashboard() {
     return () => {
       isMounted = false;
     };
-  }, [authLoading, location.state, selectedAudience, selectedPlatform, storageKey, user]);
+  }, [
+    authLoading,
+    location.state,
+    selectedAudience,
+    selectedPlatform,
+    storageKey,
+    user,
+  ]);
 
   const latestScan = researchHistory[0] || null;
   const latestHistoryData = getHistoryResponse(latestScan);
-  const activeResearchData = apiData || latestHistoryData;
+  const activeResearchData = isGroqDashboardData(apiData)
+    ? apiData
+    : isGroqDashboardData(latestHistoryData)
+      ? latestHistoryData
+      : null;
 
   const topicsToShow = getList(activeResearchData?.trendingTopics);
   const dashboardTopicsToShow = topicsToShow.slice(0, 4);
   const hooksToShow = getList(activeResearchData?.viralHooks);
   const titlesToShow = getList(activeResearchData?.titleSuggestions);
-  const competitorsToShow = getList(activeResearchData?.competitors);
+  const topicMetricLabel = activeResearchData?.source === "groq" ? "AI fit" : "Growth";
+  // These channels come from the dedicated YouTube Data API endpoint, never Groq.
+  const competitorsToShow = getList(youtubeCompetitors);
+  const youtubeChannelNames = competitorsToShow
+    .map((item) =>
+      String(
+        item?.channel ||
+        item?.channelName ||
+        item?.channelTitle ||
+        item?.title ||
+        ""
+      ).trim()
+    )
+    .filter(Boolean);
 
-  const dashboardStats = buildDashboardStats({
+  const baseDashboardStats = buildDashboardStats({
     activeData: activeResearchData,
     history: researchHistory,
     savedIdeasCount,
   });
 
+  const dashboardStats = {
+    ...baseDashboardStats,
+    topicsCount:
+      baseDashboardStats.topicsCount || liveTrendTopics.length,
+    competitorsCount: competitorsToShow.length,
+  };
+
   const hasResearchData = Boolean(
     topicsToShow.length ||
     hooksToShow.length ||
-    titlesToShow.length ||
-    competitorsToShow.length
+    titlesToShow.length
   );
 
   const activeNiche = niche || latestScan?.niche || "your niche";
   const activeSource =
     activeResearchData?.meta?.isCached
-      ? "Daily Niche Radar cached"
-      : activeResearchData?.source === "apify"
-        ? "Live Apify data"
-        : activeResearchData?.source
-          ? "Generated research"
-          : "No scan yet";
+      ? "Groq AI ideas cached for today"
+      : activeResearchData?.source === "groq"
+        ? "Groq AI generated"
+        : "No scan yet";
+
+  useEffect(() => {
+    if (!user || selectedPlatform !== "YouTube" || activeNiche === "your niche") {
+      setYoutubeCompetitors([]);
+      setCompetitorsLoading(false);
+      setCompetitorsError("");
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    async function loadYouTubeCompetitors() {
+      setCompetitorsLoading(true);
+      setCompetitorsError("");
+
+      try {
+        const data = await getTopYouTubeChannels({
+          niche: activeNiche,
+          limit: 4,
+        });
+
+        if (!cancelled) {
+          setYoutubeCompetitors(getList(data?.channels));
+        }
+      } catch (requestError) {
+        if (!cancelled) {
+          setYoutubeCompetitors([]);
+          setCompetitorsError(
+            requestError.message || "Failed to load public YouTube channel data."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setCompetitorsLoading(false);
+        }
+      }
+    }
+
+    loadYouTubeCompetitors();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeNiche, selectedPlatform, user]);
 
   const latestScanDate = formatDate(
     latestScan?.created_at || latestScan?.createdAt || activeResearchData?.meta?.generatedAt
   );
 
-  const pageTitle = hasResearchData
-    ? `${activeNiche} research overview`
-    : "Discover your next viral video";
+  const pageTitle = "Discover your next viral video";
 
-  const headlineWords = ["Discover something new today"];
+  const headlineWords = DASHBOARD_HEADLINE_WORDS;
 
   const handleFindIdeas = async () => {
     if (!requireAuth()) {
@@ -692,6 +857,8 @@ export default function Dashboard() {
     setError("");
     setSavingText("");
     setContentPackLoading("");
+    setYoutubeCompetitors([]);
+    setCompetitorsError("");
   };
 
   useEffect(() => {
@@ -709,6 +876,8 @@ export default function Dashboard() {
     setError("");
     setSavingText("");
     setContentPackLoading("");
+    setYoutubeCompetitors([]);
+    setCompetitorsError("");
 
     navigate("/dashboard", {
       replace: true,
@@ -827,6 +996,7 @@ export default function Dashboard() {
         }
         : null,
       research: activeResearchData,
+      youtubeCompetitors: competitorsToShow,
       exportedAt: new Date().toISOString(),
     };
 
@@ -998,14 +1168,124 @@ export default function Dashboard() {
 
           </section>
 
-          {!dashboardLoading && !hasResearchData && (
-            <section className="mt-8">
-              <EmptyPanel
-                title="Set your niche to start"
-                description="Enter a niche like Fitness, Finance, Gaming, AI Tools, or Motivation and click Refresh Ideas. Your dashboard will show 4 fresh ideas here and more on the Trends page."
-              />
-            </section>
-          )}
+          {!dashboardLoading &&
+            !hasResearchData &&
+            !liveTrendTopics.length && (
+              <section className="mt-8">
+                <EmptyPanel
+                  title="Set your niche to start"
+                  description="Enter a niche like Fitness, Finance, Gaming, AI Tools, or Motivation and click Refresh Ideas. Your dashboard will show 4 fresh ideas here and more on the Trends page."
+                />
+              </section>
+            )}
+          {!dashboardLoading &&
+            !hasResearchData &&
+            liveTrendTopics.length > 0 && (
+              <section className="mt-8">
+                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Flame className="h-5 w-5 text-orange-300" />
+
+                      <h2 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">
+                        Trending Now
+                      </h2>
+                    </div>
+
+                    <p className="mt-1 text-sm leading-6 text-zinc-500">
+                      Live YouTube topics are shown here until you run your first niche scan.
+                    </p>
+                  </div>
+
+                  <Button
+                    type="button"
+                    onClick={() => navigate("/trends")}
+                    className="h-9 w-full rounded-full border border-white/10 bg-white/[0.04] px-4 text-xs font-medium text-zinc-200 hover:bg-white/[0.08] sm:w-auto"
+                  >
+                    Explore All Trends
+                  </Button>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  {liveTrendTopics.map((item, index) => {
+                    const topicText = getTextValue(item?.topic, "Untitled trend");
+
+                    return (
+                      <motion.div
+                        key={item.id || `${topicText}-${index}`}
+                        initial={{ opacity: 0, y: 14 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.08 }}
+                      >
+                        <Card className="group h-full border-white/10 bg-white/[0.04] transition hover:-translate-y-1 hover:bg-white/[0.06] hover:shadow-2xl hover:shadow-cyan-950/30">
+                          <CardContent className="flex h-full flex-col p-5">
+                            <div className="mb-5 flex flex-wrap items-center gap-2">
+                              <span className="rounded-full bg-cyan-300/10 px-3 py-1 text-xs font-medium text-cyan-200">
+                                {getTextValue(item?.growth, "Trending now")}
+                              </span>
+
+                              <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-zinc-400">
+                                {getTextValue(item?.competition, "Medium")} competition
+                              </span>
+
+                              <span className="rounded-full border border-violet-300/20 bg-violet-300/10 px-3 py-1 text-xs text-violet-200">
+                                {getTextValue(item?.difficulty, "Video")}
+                              </span>
+                            </div>
+
+                            <h3 className="text-base font-semibold leading-7 text-white sm:text-lg">
+                              {topicText}
+                            </h3>
+
+                            <p className="mt-3 flex-1 text-sm leading-6 text-zinc-500">
+                              {getTextValue(
+                                item?.insight,
+                                "Live YouTube trend signal."
+                              )}
+                            </p>
+
+                            <Button
+                              type="button"
+                              onClick={() => handleGenerateContentPack(item)}
+                              disabled={contentPackLoading === topicText}
+                              className="mt-6 h-11 w-full rounded-full border border-cyan-300/20 bg-cyan-300/10 px-5 text-sm font-semibold text-cyan-100 hover:bg-cyan-300/20"
+                            >
+                              {contentPackLoading === topicText ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  Creating...
+                                </>
+                              ) : (
+                                <>
+                                  <Sparkles className="h-4 w-4" />
+                                  Create Pack
+                                </>
+                              )}
+                            </Button>
+
+                            <Button
+                              type="button"
+                              onClick={() =>
+                                handleSaveIdea({
+                                  type: "Trend",
+                                  content: topicText,
+                                  platform: item?.platform || selectedPlatform,
+                                  niche: item?.niche || "Live YouTube trends",
+                                })
+                              }
+                              disabled={savingText === topicText}
+                              className="mt-3 h-10 w-full rounded-full border border-white/10 bg-white/[0.04] px-5 text-xs font-semibold text-zinc-200 hover:bg-white/[0.08]"
+                            >
+                              {savingText === topicText ? "Saving..." : "Save Trend"}
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
 
           {hasResearchData && (
             <>
@@ -1017,23 +1297,29 @@ export default function Dashboard() {
                     </h2>
 
                     <p className="mt-1 text-sm leading-6 text-zinc-500">
-                      Showing 4 best ideas for your niche. Click View All for
-                      the full topic library with search, sort, save, and share.
+                      Fresh Groq AI-generated ideas for your niche. These are
+                      creative recommendations, not live Apify trend metrics.
                     </p>
                   </div>
 
                   <Button
                     type="button"
-                    onClick={() =>
-                      navigate("/trends", {
+                    onClick={() => {
+                      const params = new URLSearchParams({
+                        niche: activeNiche,
+                        platform: selectedPlatform,
+                        audience: selectedAudience,
+                      });
+
+                      navigate(`/fresh-topics?${params.toString()}`, {
                         state: {
-                          query: activeNiche,
+                          niche: activeNiche,
                           platform: selectedPlatform,
                           audience: selectedAudience,
-                          trends: topicsToShow,
+                          researchData: activeResearchData,
                         },
-                      })
-                    }
+                      });
+                    }}
                     className="h-9 w-full rounded-full border border-white/10 bg-white/[0.04] px-4 text-xs font-medium text-zinc-200 hover:bg-white/[0.08] sm:w-auto"
                   >
                     View All
@@ -1069,7 +1355,7 @@ export default function Dashboard() {
                           <CardContent className="flex h-full flex-col p-5">
                             <div className="mb-5 flex flex-wrap items-center gap-2">
                               <span className="rounded-full bg-cyan-300/10 px-3 py-1 text-xs font-medium text-cyan-200">
-                                Growth {growthText}
+                                {topicMetricLabel} {growthText}
                               </span>
 
                               <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-zinc-400">
@@ -1263,10 +1549,10 @@ export default function Dashboard() {
                     <h2 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">
                       Competitor Analysis
                     </h2>
+              
 
                     <p className="mt-1 text-sm leading-6 text-zinc-500">
-                      Track top channels, average views, and growth momentum in
-                      your niche.
+                      Real public YouTube channel names and counters for {activeNiche}.
                     </p>
                   </div>
 
@@ -1281,97 +1567,119 @@ export default function Dashboard() {
                   </Button>
                 </div>
 
-                <Card className="overflow-hidden border-white/10 bg-white/[0.04]">
-                  <CardContent className="p-0">
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[720px] text-left text-sm">
-                        <thead className="border-b border-white/10 bg-white/[0.035] text-xs uppercase tracking-[0.16em] text-zinc-500">
-                          <tr>
-                            <th className="px-5 py-4 font-medium">
-                              Top Channel
-                            </th>
-                            <th className="px-5 py-4 font-medium">Niche</th>
-                            <th className="px-5 py-4 font-medium">
-                              Average Views
-                            </th>
-                            <th className="px-5 py-4 font-medium">Growth</th>
-                            <th className="px-5 py-4 font-medium">
-                              Opportunity
-                            </th>
-                          </tr>
-                        </thead>
+                {competitorsLoading && (
+                  <Card className="border-white/10 bg-white/[0.04]">
+                    <CardContent className="flex min-h-[132px] items-center justify-center gap-3 p-6 text-sm text-zinc-300">
+                      <Loader2 className="h-5 w-5 animate-spin text-cyan-300" />
+                      Loading public YouTube channels...
+                    </CardContent>
+                  </Card>
+                )}
 
-                        <tbody className="divide-y divide-white/10">
-                          {competitorsToShow.map((item, index) => {
-                            const channelName = getTextValue(
-                              item.channel,
-                              "Unknown Channel"
-                            );
-                            const competitorNiche = getTextValue(
-                              item.niche,
-                              activeNiche
-                            );
-                            const viewsText = getTextValue(item.views, "0");
-                            const growthText = getTextValue(item.growth, "+0%");
-                            const scoreText = getTextValue(item.score, "0");
-                            const scoreNumber = Math.max(
-                              0,
-                              Math.min(100, Number(item.score) || 0)
-                            );
+                {!competitorsLoading && competitorsError && (
+                  <Card className="border-rose-300/20 bg-rose-300/[0.06]">
+                    <CardContent className="p-5 text-sm leading-6 text-rose-100">
+                      {competitorsError}
+                    </CardContent>
+                  </Card>
+                )}
 
-                            return (
-                              <tr
-                                key={`${channelName}-${index}`}
-                                className="transition hover:bg-white/[0.035]"
-                              >
-                                <td className="px-5 py-4">
-                                  <div className="flex items-center gap-3">
-                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-zinc-700 to-zinc-900 text-xs font-semibold text-white">
-                                      {channelName.slice(0, 2).toUpperCase()}
+                {!competitorsLoading && !competitorsError && !competitorsToShow.length && (
+                  <Card className="border-white/10 bg-white/[0.04]">
+                    <CardContent className="p-6 text-sm text-zinc-400">
+                      No public YouTube channels were found for this niche yet.
+                    </CardContent>
+                  </Card>
+                )}
+
+                {!competitorsLoading && competitorsToShow.length > 0 && (
+                  <Card className="overflow-hidden border-white/10 bg-white/[0.04]">
+                    <CardContent className="p-0">
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[720px] text-left text-sm">
+                          <thead className="border-b border-white/10 bg-white/[0.035] text-xs uppercase tracking-[0.16em] text-zinc-500">
+                            <tr>
+                              <th className="px-5 py-4 font-medium">Top Channel</th>
+                              <th className="px-5 py-4 font-medium">Subscribers</th>
+                              <th className="px-5 py-4 font-medium">Channel Views</th>
+                              <th className="px-5 py-4 font-medium">Videos</th>
+                              <th className="px-5 py-4 font-medium">Open</th>
+                            </tr>
+                          </thead>
+
+                          <tbody className="divide-y divide-white/10">
+                            {competitorsToShow.map((item, index) => {
+                              const channelName =
+                                getTextValue(
+                                  item?.channelTitle ||
+                                  item?.channelName ||
+                                  item?.name ||
+                                  item?.channel,
+                                  ""
+                                ).trim() || "Unknown Channel";
+                              const channelUrl = getTextValue(item.channelUrl, "");
+                              const initials = channelName.slice(0, 2).toUpperCase();
+
+                              return (
+                                <tr
+                                  key={item.channelId || `${channelName}-${index}`}
+                                  className="transition hover:bg-white/[0.035]"
+                                >
+                                  <td className="px-5 py-4">
+                                    <div className="flex items-center gap-3">
+                                      {item.channelThumbnail ? (
+                                        <img
+                                          src={item.channelThumbnail}
+                                          alt={channelName}
+                                          className="h-9 w-9 shrink-0 rounded-2xl border border-white/10 object-cover"
+                                        />
+                                      ) : (
+                                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-zinc-700 to-zinc-900 text-xs font-semibold text-white">
+                                          {initials}
+                                        </div>
+                                      )}
+
+                                      <div className="min-w-0">
+                                        <p className="truncate font-medium text-white">{channelName}</p>
+                                        <p className="mt-1 truncate text-xs text-zinc-500">
+                                          {item?.channelHandle || "YouTube Data API"}
+                                        </p>                                      </div>
                                     </div>
+                                  </td>
 
-                                    <span className="font-medium text-white">
-                                      {channelName}
-                                    </span>
-                                  </div>
-                                </td>
+                                  <td className="px-5 py-4 text-zinc-200">
+                                    {getTextValue(item.subscribers, "—")}
+                                  </td>
 
-                                <td className="px-5 py-4 text-zinc-400">
-                                  {competitorNiche}
-                                </td>
+                                  <td className="px-5 py-4 text-zinc-200">
+                                    {getTextValue(item.channelViews, "—")}
+                                  </td>
 
-                                <td className="px-5 py-4 text-zinc-200">
-                                  {viewsText}
-                                </td>
+                                  <td className="px-5 py-4 text-cyan-300">
+                                    {getTextValue(item.videoCount, "—")}
+                                  </td>
 
-                                <td className="px-5 py-4 text-cyan-300">
-                                  {growthText}
-                                </td>
-
-                                <td className="px-5 py-4">
-                                  <div className="flex items-center gap-3">
-                                    <div className="h-2 w-24 overflow-hidden rounded-full bg-white/10">
-                                      <div
-                                        className="h-full rounded-full bg-cyan-300"
-                                        style={{
-                                          width: `${scoreNumber}%`,
-                                        }}
-                                      />
-                                    </div>
-
-                                    <span className="text-zinc-300">
-                                      {scoreText}
-                                    </span>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </CardContent>
-                </Card>
+                                  <td className="px-5 py-4">
+                                    <Button
+                                      type="button"
+                                      disabled={!channelUrl}
+                                      onClick={() =>
+                                        window.open(channelUrl, "_blank", "noopener,noreferrer")
+                                      }
+                                      className="h-8 rounded-full border border-white/10 bg-white/[0.05] px-3 text-xs text-zinc-200 hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                      Open Channel
+                                    </Button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </section>
             </>
           )}

@@ -51,8 +51,10 @@ export default function Header({
       <Button
         type="button"
         onClick={handleNewScanClick}
+        className="shrink-0 rounded-xl border border-cyan-300/30 bg-gradient-to-r from-cyan-300 to-blue-400 px-3.5 py-2 text-xs font-semibold text-slate-950 shadow-lg shadow-cyan-500/20 transition hover:from-cyan-200 hover:to-blue-300 hover:shadow-cyan-400/30 active:scale-[0.98] sm:px-4 sm:py-2.5 sm:text-sm"
       >
-        New Scan
+        <Zap className="h-4 w-4" strokeWidth={2.5} />
+        <span>New Scan</span>
       </Button>
     </header>
   );

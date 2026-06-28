@@ -9,6 +9,11 @@ const dataPrivacyRoutes = require("./routes/dataPrivacy.routes");
 const youtubeRoutes = require("./routes/youtube.routes");
 const viralCheckRoutes = require("./routes/viralCheck.routes");
 const trendsRoutes = require("./routes/trends.routes");
+const mediaExportRoutes = require("./routes/mediaExport.routes");
+
+const {
+  startMediaExportCleanupCron,
+} = require("./jobs/mediaExportCleanupCron");
 
 const {
   startDataPrivacyPurgeCron,
@@ -63,6 +68,7 @@ app.use(
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
+    exposedHeaders: ["Content-Disposition", "Content-Length"],
   })
 );
 
@@ -88,6 +94,7 @@ app.use("/api/data-privacy", dataPrivacyRoutes);
 app.use("/api/youtube", youtubeRoutes);
 app.use("/api/viral-check", viralCheckRoutes);
 app.use("/api/trends", trendsRoutes);
+app.use("/api/media-exports", mediaExportRoutes);
 
 
 const PORT = process.env.PORT || 5000;
@@ -96,4 +103,5 @@ app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 
   startDataPrivacyPurgeCron();
+  startMediaExportCleanupCron();
 });

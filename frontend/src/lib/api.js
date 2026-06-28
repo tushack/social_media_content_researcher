@@ -46,6 +46,37 @@ export async function getDailyNicheIdeas({
   return data;
 }
 
+export async function getTopYouTubeChannels({
+  niche,
+  limit = 4,
+} = {}) {
+  const cleanNiche = String(niche || "").trim();
+
+  if (!cleanNiche) {
+    throw new Error("Niche is required to load YouTube channels.");
+  }
+
+  const params = new URLSearchParams({
+    niche: cleanNiche,
+    limit: String(limit),
+  });
+
+  const response = await fetch(
+    `${API_BASE_URL}/research/top-channels?${params.toString()}`,
+    {
+      headers: await getAuthHeaders(),
+    }
+  );
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.message || "Failed to fetch YouTube channels.");
+  }
+
+  return data;
+}
+
 export async function generateResearch(payload) {
   const response = await fetch(`${API_BASE_URL}/research/generate`, {
     method: "POST",
@@ -313,6 +344,174 @@ export async function searchTrendTopics(payload) {
 
   if (!response.ok) {
     throw new Error(data.message || "Failed to search live trends.");
+  }
+
+  return data;
+}
+
+
+function getDownloadFileName(contentDisposition, fallbackName) {
+  const encodedMatch = String(contentDisposition || "").match(
+    /filename\*=UTF-8''([^;]+)/i
+  );
+
+  if (encodedMatch?.[1]) {
+    try {
+      return decodeURIComponent(encodedMatch[1]);
+    } catch {
+      return fallbackName;
+    }
+  }
+
+  const normalMatch = String(contentDisposition || "").match(
+    /filename="?([^";]+)"?/i
+  );
+
+  return normalMatch?.[1] || fallbackName;
+}
+
+export async function previewYoutubeVideo(payload) {
+  const response = await fetch(`${API_BASE_URL}/media-exports/youtube-preview`, {
+    method: "POST",
+    headers: await getAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.message || "Could not load YouTube preview.");
+  }
+
+  return data;
+}
+
+export async function convertOwnedMedia({
+  file,
+  outputType,
+  videoQuality,
+  audioBitrate,
+  rightsAcknowledged,
+  youtubeUrl,
+  youtubeVideoId,
+  youtubeTitle,
+  onUploadProgress,
+}) {
+  const currentUser = auth.currentUser;
+
+  if (!currentUser) {
+    throw new Error("Please login first.");
+  }
+
+  if (!file) {
+    throw new Error("Upload your original video file first.");
+  }
+
+  const token = await currentUser.getIdToken();
+  const formData = new FormData();
+
+  formData.append("file", file);
+  formData.append("outputType", outputType || "video");
+  formData.append("videoQuality", videoQuality || "original");
+  formData.append("audioBitrate", String(audioBitrate || 192));
+  formData.append("rightsAcknowledged", String(Boolean(rightsAcknowledged)));
+  formData.append("youtubeUrl", youtubeUrl || "");
+  formData.append("youtubeVideoId", youtubeVideoId || "");
+  formData.append("youtubeTitle", youtubeTitle || "");
+
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest();
+
+    request.open("POST", `${API_BASE_URL}/media-exports/convert`);
+    request.setRequestHeader("Authorization", `Bearer ${token}`);
+
+    request.upload.onprogress = (event) => {
+      if (!event.lengthComputable || typeof onUploadProgress !== "function") {
+        return;
+      }
+
+      onUploadProgress(Math.round((event.loaded / event.total) * 100));
+    };
+
+    request.onerror = () => {
+      reject(new Error("Network error while uploading your original video."));
+    };
+
+    request.onload = () => {
+      let data = {};
+
+      try {
+        data = request.responseText ? JSON.parse(request.responseText) : {};
+      } catch {
+        data = {};
+      }
+
+      if (request.status < 200 || request.status >= 300) {
+        reject(new Error(data.message || "Could not export this media file."));
+        return;
+      }
+
+      resolve(data);
+    };
+
+    request.send(formData);
+  });
+}
+
+export async function getMediaExports() {
+  const response = await fetch(`${API_BASE_URL}/media-exports`, {
+    headers: await getAuthHeaders(),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.message || "Could not load media export history.");
+  }
+
+  return data;
+}
+
+export async function downloadMediaExport(item) {
+  const response = await fetch(
+    `${API_BASE_URL}/media-exports/${item.id}/download`,
+    {
+      headers: await getAuthHeaders(),
+    }
+  );
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || "Could not download this media export.");
+  }
+
+  const fileBlob = await response.blob();
+  const objectUrl = URL.createObjectURL(fileBlob);
+  const anchor = document.createElement("a");
+
+  anchor.href = objectUrl;
+  anchor.download = getDownloadFileName(
+    response.headers.get("content-disposition"),
+    item.outputName || "media-export"
+  );
+
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+}
+
+export async function deleteMediaExport(exportId) {
+  const response = await fetch(`${API_BASE_URL}/media-exports/${exportId}`, {
+    method: "DELETE",
+    headers: await getAuthHeaders(),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.message || "Could not delete media export.");
   }
 
   return data;

@@ -51,8 +51,11 @@ const FALLBACK_TOPIC_ANGLES = [
 
 const {
   runApifyYouTubeSearch,
-  runApifyYouTubeChannelAnalysis,
 } = require("./apify.service");
+
+const {
+  analyzePublicYouTubeCompetitor,
+} = require("./youtubeCompetitor.service");
 
 function pickField(item, fields, fallback = "") {
   for (const field of fields) {
@@ -777,143 +780,10 @@ function calculateOpportunityScore(avgViews, subscribers) {
 }
 
 async function analyzeCompetitorChannelResult({ channelUrl }) {
-  if (!channelUrl) {
-    throw new Error("Channel URL is required");
-  }
-
-  const apifyItems = await runApifyYouTubeChannelAnalysis({
-    channelUrl,
+  return analyzePublicYouTubeCompetitor({
+    channelInput: channelUrl,
     maxResults: 30,
   });
-
-  const hasOnlyDemoItems =
-    apifyItems.length > 0 && apifyItems.every((item) => item.demo === true);
-
-  if (hasOnlyDemoItems) {
-    throw new Error("Apify actor returned demo data only.");
-  }
-
-  const channelInfoItem =
-    apifyItems.find(isChannelInfoItem) || apifyItems[0] || {};
-
-  const rawVideoItems = apifyItems.filter(isVideoItem);
-
-  const videos = rawVideoItems.map(normalizeApifyVideo).filter((video) => {
-    return video && video.title;
-  });
-
-  const channelName = extractChannelName(
-    channelInfoItem,
-    videos[0]?.channel || "Unknown Channel"
-  );
-
-  const subscribers = getTextValue(
-    pickField(
-      channelInfoItem,
-      [
-        "subscriberCountText",
-        "subscriberCount",
-        "subscribers",
-        "numberOfSubscribers",
-      ],
-      "Not available"
-    ),
-    "Not available"
-  );
-
-  const totalChannelViews = normalizeViewCount(
-    pickField(channelInfoItem, ["viewCount", "totalViews", "views"], 0)
-  );
-
-  const totalChannelVideos = normalizeViewCount(
-    pickField(channelInfoItem, ["videoCount", "videos", "numberOfVideos"], 0)
-  );
-
-  const avgViewsFromChannel =
-    totalChannelViews > 0 && totalChannelVideos > 0
-      ? Math.round(totalChannelViews / totalChannelVideos)
-      : 0;
-
-  const finalChannelUrl = extractChannelUrl(channelInfoItem, channelUrl);
-
-  if (!videos.length) {
-    const growth = calculateChannelGrowth(
-      totalChannelVideos,
-      totalChannelViews,
-      subscribers
-    );
-
-    const opportunityScore = calculateOpportunityScore(
-      avgViewsFromChannel,
-      subscribers
-    );
-
-    return {
-      channel: channelName,
-      channelUrl: finalChannelUrl,
-      subscribers,
-      totalVideosAnalyzed: 0,
-      totalChannelVideos,
-      totalChannelViews: formatViews(totalChannelViews),
-      avgViews: formatViews(avgViewsFromChannel),
-      highestViews: "Not available",
-      growth,
-      uploadRate:
-        totalChannelVideos > 0
-          ? `${formatViews(totalChannelVideos)} total videos`
-          : "Not available",
-      opportunityScore: String(opportunityScore),
-      summary: `${channelName} has ${subscribers}, ${formatViews(
-        totalChannelViews
-      )} total channel views, and ${formatViews(
-        totalChannelVideos
-      )} total videos. Average views are around ${formatViews(
-        avgViewsFromChannel
-      )} per video. Recent video-level data was not returned by the scraper, so this analysis is based on channel-level stats.`,
-      topVideos: [],
-    };
-  }
-
-  const viewCounts = videos.map((video) => Number(video.views || 0));
-  const averageViews = calculateAverage(viewCounts);
-  const highestViews = Math.max(...viewCounts, 0);
-
-  const topVideos = videos
-    .sort((a, b) => Number(b.views || 0) - Number(a.views || 0))
-    .slice(0, 6)
-    .map((video) => ({
-      title: video.title,
-      views: formatViews(video.views),
-      url: video.url,
-      thumbnail: video.thumbnail,
-      publishedAt: video.publishedAt,
-    }));
-
-  const growth = videos.length >= 10
-    ? "+24%"
-    : calculateChannelGrowth(totalChannelVideos, totalChannelViews, subscribers);
-
-  const opportunityScore = calculateOpportunityScore(averageViews, subscribers);
-
-  return {
-    channel: channelName,
-    channelUrl: finalChannelUrl,
-    subscribers,
-    totalVideosAnalyzed: videos.length,
-    totalChannelVideos,
-    totalChannelViews: formatViews(totalChannelViews),
-    avgViews: formatViews(averageViews),
-    highestViews: formatViews(highestViews),
-    growth,
-    uploadRate: `${videos.length} recent videos`,
-    opportunityScore: String(opportunityScore),
-    summary: `${channelName} has ${videos.length} recent videos analyzed. Average views are around ${formatViews(
-      averageViews
-    )}, with the highest video reaching ${formatViews(
-      highestViews
-    )} views. Total channel views are ${formatViews(totalChannelViews)}.`,
-    topVideos,
-  };
 }
 
 function cleanString(value, fallback = "") {

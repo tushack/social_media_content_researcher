@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 import Dashboard from "./pages/Dashboard";
+import FreshTopics from "./pages/FreshTopics";
 import Trends from "./pages/Trends";
 import Competitors from "./pages/Competitors";
 import SavedIdeas from "./pages/SavedIdeas";
@@ -15,6 +16,8 @@ import SavedThumbnails from "./pages/SavedThumbnails";
 import Profile from "./pages/Profile";
 import DataPrivacy from "./pages/DataPrivacy";
 import ViralCheck from "./pages/ViralCheck";
+import MediaExport from "./pages/MediaExport";
+
 
 function ProtectedRoute({ children }) {
   const { user, authLoading } = useAuth();
@@ -39,6 +42,15 @@ function App() {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
         <Route path="/dashboard" element={<Dashboard />} />
+
+        <Route
+          path="/fresh-topics"
+          element={
+            <ProtectedRoute>
+              <FreshTopics />
+            </ProtectedRoute>
+          }
+        />
 
         <Route
           path="/trends"
@@ -135,6 +147,15 @@ function App() {
           element={
             <ProtectedRoute>
               <ViralCheck />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/media-export"
+          element={
+            <ProtectedRoute>
+              <MediaExport />
             </ProtectedRoute>
           }
         />

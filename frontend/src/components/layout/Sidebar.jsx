@@ -16,6 +16,7 @@ import {
   TrendingUp,
   UserRound,
   Users,
+  Download,
   X,
 } from "lucide-react";
 import { doc, onSnapshot } from "firebase/firestore";
@@ -56,6 +57,11 @@ const privateNavItems = [
     label: "History",
     icon: Clock,
     path: "/history",
+  },
+  {
+    label: "Youtube Downloader",
+    icon: Download,
+    path: "/media-export",
   },
   {
     label: "Settings",
