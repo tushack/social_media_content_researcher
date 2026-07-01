@@ -7,6 +7,8 @@ const {
   removeTemporaryInputFile,
 } = require("../services/mediaExport.service");
 
+const { logActivitySafe } = require("../services/activityLog.service");
+
 function sendServiceError(res, error, fallbackMessage) {
   return res.status(error.statusCode || 500).json({
     message: error.message || fallbackMessage,
@@ -17,6 +19,18 @@ async function previewYoutubeMedia(req, res) {
   try {
     const preview = await getYoutubeVideoPreview({
       videoUrl: req.body?.videoUrl,
+    });
+
+    await logActivitySafe({
+      userId: req.user.uid,
+      userEmail: req.user.email,
+      eventType: "media.youtube_previewed",
+      module: "media",
+      metadata: {
+        videoId: preview?.videoId || "",
+        title: preview?.title || "",
+      },
+      req,
     });
 
     return res.status(200).json({ preview });
@@ -40,12 +54,38 @@ async function convertMediaExport(req, res) {
       youtubeTitle: req.body?.youtubeTitle,
     });
 
+    await logActivitySafe({
+      userId: req.user.uid,
+      userEmail: req.user.email,
+      eventType: "media.export_completed",
+      module: "media",
+      entityId: exportItem?.id || "",
+      metadata: {
+        outputType: exportItem?.outputType || req.body?.outputType || "",
+        outputQuality: exportItem?.outputQuality || "",
+        outputBytes: exportItem?.outputBytes || 0,
+        youtubeTitle: exportItem?.youtubeTitle || req.body?.youtubeTitle || "",
+      },
+      req,
+    });
+
     return res.status(201).json({
       message: "Your media export is ready.",
       exportItem,
     });
   } catch (error) {
     console.error("Media conversion error:", error);
+
+    await logActivitySafe({
+      userId: req.user?.uid,
+      userEmail: req.user?.email,
+      eventType: "media.export_failed",
+      module: "media",
+      status: "failed",
+      metadata: { message: error.message },
+      req,
+    });
+
     return sendServiceError(res, error, "Could not export media.");
   } finally {
     await removeTemporaryInputFile(req.file?.path);
@@ -72,6 +112,19 @@ async function downloadMediaExport(req, res) {
       exportId: req.params.exportId,
     });
 
+    await logActivitySafe({
+      userId: req.user.uid,
+      userEmail: req.user.email,
+      eventType: "media.export_downloaded",
+      module: "media",
+      entityId: record.id,
+      metadata: {
+        outputName: record.output_name,
+        outputType: record.output_type,
+      },
+      req,
+    });
+
     res.type(record.output_mime_type || "application/octet-stream");
 
     return res.download(outputPath, record.output_name, (error) => {
@@ -96,6 +149,15 @@ async function deleteMediaExport(req, res) {
     const result = await deleteOwnedMediaExport({
       userId: req.user.uid,
       exportId: req.params.exportId,
+    });
+
+    await logActivitySafe({
+      userId: req.user.uid,
+      userEmail: req.user.email,
+      eventType: "media.export_deleted",
+      module: "media",
+      entityId: req.params.exportId,
+      req,
     });
 
     return res.status(200).json({

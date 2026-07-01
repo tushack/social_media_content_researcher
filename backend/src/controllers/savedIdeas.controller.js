@@ -4,6 +4,8 @@ const {
   deleteSavedIdeaService,
 } = require("../services/savedIdeas.service");
 
+const { logActivitySafe } = require("../services/activityLog.service");
+
 async function createSavedIdea(req, res) {
   try {
     const { type, content, platform, niche } = req.body;
@@ -20,6 +22,20 @@ async function createSavedIdea(req, res) {
       content,
       platform,
       niche,
+    });
+
+    await logActivitySafe({
+      userId: req.user.uid,
+      userEmail: req.user.email,
+      eventType: "saved_idea.created",
+      module: "saved_ideas",
+      entityId: data.id,
+      metadata: {
+        type: data.type,
+        niche: data.niche || "",
+        platform: data.platform || "",
+      },
+      req,
     });
 
     return res.status(201).json(data);
@@ -51,6 +67,16 @@ async function deleteSavedIdea(req, res) {
       id,
       userId: req.user.uid,
     });
+
+    await logActivitySafe({
+      userId: req.user.uid,
+      userEmail: req.user.email,
+      eventType: "saved_idea.deleted",
+      module: "saved_ideas",
+      entityId: id,
+      req,
+    });
+
     return res.status(200).json({
       message: "Idea deleted successfully",
     });

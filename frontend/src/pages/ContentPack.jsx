@@ -1377,7 +1377,7 @@ export default function ContentPack() {
             </div>
           </SectionCard>
 
-          {/* <SectionCard icon={Play} title="YouTube Ready Kit">
+          <SectionCard icon={Play} title="YouTube Ready Kit">
             <div className="space-y-4">
               <p className="text-sm leading-6 text-zinc-500">
                 First upload your video manually on YouTube Studio. Then paste
@@ -1500,7 +1500,7 @@ export default function ContentPack() {
                 </p>
               )}
             </div>
-          </SectionCard> */}
+          </SectionCard>
 
           <Card className="border-cyan-300/15 bg-cyan-300/[0.04]">
             <CardContent className="p-5">

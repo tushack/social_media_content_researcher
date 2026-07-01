@@ -278,6 +278,21 @@ export async function getYoutubeConnection() {
   return data;
 }
 
+export async function disconnectYoutubeConnection() {
+  const response = await fetch(`${API_BASE_URL}/youtube/connection`, {
+    method: "DELETE",
+    headers: await getAuthHeaders(),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.message || "Failed to disconnect YouTube.");
+  }
+
+  return data;
+}
+
 export async function applyYoutubeReadyKit(payload) {
   const response = await fetch(`${API_BASE_URL}/youtube/apply-kit`, {
     method: "POST",
@@ -515,4 +530,169 @@ export async function deleteMediaExport(exportId) {
   }
 
   return data;
+}
+// ---------------------------------------------------------------------------
+// Content Calendar API
+// ---------------------------------------------------------------------------
+async function calendarRequest(path = "", { method = "GET", body } = {}) {
+  const response = await fetch(`${API_BASE_URL}/calendar${path}`, {
+    method,
+    headers: await getAuthHeaders(),
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const error = new Error(data.message || "Calendar request failed.");
+    error.statusCode = response.status;
+    throw error;
+  }
+
+  return data;
+}
+
+export async function getCalendarEvents() {
+  return calendarRequest("/");
+}
+
+export async function createCalendarEvent(payload) {
+  return calendarRequest("/", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export async function updateCalendarEvent(eventId, payload) {
+  if (!eventId) {
+    throw new Error("Calendar event ID is required.");
+  }
+
+  return calendarRequest(`/${encodeURIComponent(eventId)}`, {
+    method: "PATCH",
+    body: payload,
+  });
+}
+
+export async function deleteCalendarEvent(eventId) {
+  if (!eventId) {
+    throw new Error("Calendar event ID is required.");
+  }
+
+  return calendarRequest(`/${encodeURIComponent(eventId)}`, {
+    method: "DELETE",
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Admin API
+// Every request below is additionally protected by requireFirebaseAuth and
+// requireAdmin on the backend. Do not rely on frontend route protection alone.
+// ---------------------------------------------------------------------------
+function buildQueryString(filters = {}) {
+  const params = new URLSearchParams();
+
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value === undefined || value === null || String(value).trim() === "") {
+      return;
+    }
+
+    params.set(key, String(value));
+  });
+
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
+async function adminRequest(path, { method = "GET", body } = {}) {
+  const response = await fetch(`${API_BASE_URL}/admin${path}`, {
+    method,
+    headers: await getAuthHeaders(),
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const error = new Error(data.message || "Admin request failed.");
+    error.statusCode = response.status;
+    throw error;
+  }
+
+  return data;
+}
+
+export async function getAdminAccess() {
+  return adminRequest("/access");
+}
+
+export async function getAdminOverview(days = 30) {
+  return adminRequest(`/overview${buildQueryString({ days })}`);
+}
+
+export async function getAdminUsers({ search = "", page = 1, limit = 50 } = {}) {
+  return adminRequest(`/users${buildQueryString({ search, page, limit })}`);
+}
+
+export async function getAdminUser(userId) {
+  if (!userId) {
+    throw new Error("User ID is required.");
+  }
+
+  return adminRequest(`/users/${encodeURIComponent(userId)}`);
+}
+
+export async function updateAdminUserStatus(userId, disabled) {
+  if (!userId) {
+    throw new Error("User ID is required.");
+  }
+
+  return adminRequest(`/users/${encodeURIComponent(userId)}/status`, {
+    method: "PATCH",
+    body: { disabled: Boolean(disabled) },
+  });
+}
+
+export async function addAdminUserNote(userId, note) {
+  if (!userId) {
+    throw new Error("User ID is required.");
+  }
+
+  return adminRequest(`/users/${encodeURIComponent(userId)}/notes`, {
+    method: "POST",
+    body: { note: String(note || "").trim() },
+  });
+}
+
+export async function getAdminActivity({
+  page = 1,
+  limit = 50,
+  module = "",
+  status = "",
+  userId = "",
+} = {}) {
+  return adminRequest(
+    `/activity${buildQueryString({ page, limit, module, status, userId })}`
+  );
+}
+
+export async function getAdminCalendarEvents({
+  page = 1,
+  limit = 50,
+  status = "",
+  userId = "",
+} = {}) {
+  return adminRequest(
+    `/calendar-events${buildQueryString({ page, limit, status, userId })}`
+  );
+}
+
+export async function getAdminMediaExports({
+  page = 1,
+  limit = 50,
+  userId = "",
+} = {}) {
+  return adminRequest(
+    `/media-exports${buildQueryString({ page, limit, userId })}`
+  );
 }

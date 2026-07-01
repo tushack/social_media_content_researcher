@@ -1128,7 +1128,7 @@ export default function Dashboard() {
             title="Login to see your dynamic dashboard"
             description="After login, your dashboard will remember your niche and show real research history, saved ideas, hooks, titles, and competitor data."
             buttonLabel="Login / Sign up"
-            onButtonClick={() => setAuthModalOpen(true)}
+            // onButtonClick={() => setAuthModalOpen(true)}
           />
         </section>
       )}

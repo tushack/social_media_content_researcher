@@ -5,6 +5,7 @@ const {
   getAuthUrl,
   youtubeCallback,
   getConnection,
+  disconnectConnection,
   applyKit,
 } = require("../controllers/youtube.controller");
 
@@ -15,6 +16,7 @@ const {
 router.get("/auth-url", requireFirebaseAuth, getAuthUrl);
 router.get("/callback", youtubeCallback);
 router.get("/connection", requireFirebaseAuth, getConnection);
+router.delete("/connection", requireFirebaseAuth, disconnectConnection);
 router.post("/apply-kit", requireFirebaseAuth, applyKit);
 
 module.exports = router;

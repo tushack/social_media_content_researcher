@@ -10,6 +10,8 @@ const youtubeRoutes = require("./routes/youtube.routes");
 const viralCheckRoutes = require("./routes/viralCheck.routes");
 const trendsRoutes = require("./routes/trends.routes");
 const mediaExportRoutes = require("./routes/mediaExport.routes");
+const calendarRoutes = require("./routes/calendar.routes");
+const adminRoutes = require("./routes/admin.routes");
 
 const {
   startMediaExportCleanupCron,
@@ -95,6 +97,8 @@ app.use("/api/youtube", youtubeRoutes);
 app.use("/api/viral-check", viralCheckRoutes);
 app.use("/api/trends", trendsRoutes);
 app.use("/api/media-exports", mediaExportRoutes);
+app.use("/api/calendar", calendarRoutes);
+app.use("/api/admin", adminRoutes);
 
 
 const PORT = process.env.PORT || 5000;

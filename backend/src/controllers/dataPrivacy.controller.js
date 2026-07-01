@@ -5,6 +5,8 @@ const {
   purgeDueDeletionArchives,
 } = require("../services/dataPrivacy.service");
 
+const { logActivitySafe } = require("../services/activityLog.service");
+
 async function deleteSelectedRecords(req, res) {
   try {
     const { targets } = req.body || {};
@@ -13,6 +15,17 @@ async function deleteSelectedRecords(req, res) {
       userId: req.user.uid,
       email: req.user.email,
       targets,
+    });
+
+    await logActivitySafe({
+      userId: req.user.uid,
+      userEmail: req.user.email,
+      eventType: "privacy.records_deletion_requested",
+      module: "privacy",
+      metadata: {
+        targets: Array.isArray(targets) ? targets : [],
+      },
+      req,
     });
 
     return res.status(200).json(result);
@@ -30,6 +43,14 @@ async function requestDeleteAccountOtp(req, res) {
     const result = await sendDeleteAccountOtp({
       userId: req.user.uid,
       email: req.user.email,
+    });
+
+    await logActivitySafe({
+      userId: req.user.uid,
+      userEmail: req.user.email,
+      eventType: "privacy.account_deletion_otp_requested",
+      module: "privacy",
+      req,
     });
 
     return res.status(200).json(result);
@@ -56,6 +77,14 @@ async function deleteAccount(req, res) {
       userId: req.user.uid,
       email: req.user.email,
       code,
+    });
+
+    await logActivitySafe({
+      userId: req.user.uid,
+      userEmail: req.user.email,
+      eventType: "privacy.account_deletion_requested",
+      module: "privacy",
+      req,
     });
 
     return res.status(200).json(result);

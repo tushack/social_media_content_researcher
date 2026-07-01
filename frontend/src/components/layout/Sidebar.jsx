@@ -17,6 +17,7 @@ import {
   UserRound,
   Users,
   Download,
+  ShieldCheck,
   X,
 } from "lucide-react";
 import { doc, onSnapshot } from "firebase/firestore";
@@ -85,7 +86,32 @@ export default function Sidebar({
   const accountMenuRef = useRef(null);
   const navigate = useNavigate();
 
-  const navItems = user ? privateNavItems : publicNavItems;
+  const configuredAdminEmails = String(
+    import.meta.env.VITE_ADMIN_EMAILS || ""
+  )
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
+
+  const showAdminNav = Boolean(
+    user?.email &&
+      configuredAdminEmails.includes(String(user.email).trim().toLowerCase())
+  );
+
+  const navItems = user
+    ? [
+        ...privateNavItems,
+        ...(showAdminNav
+          ? [
+              {
+                label: "Admin Panel",
+                icon: ShieldCheck,
+                path: "/admin",
+              },
+            ]
+          : []),
+      ]
+    : publicNavItems;
 
   useEffect(() => {
     if (!user?.uid) {

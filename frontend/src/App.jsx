@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 
 import Dashboard from "./pages/Dashboard";
 import FreshTopics from "./pages/FreshTopics";
@@ -17,6 +18,9 @@ import Profile from "./pages/Profile";
 import DataPrivacy from "./pages/DataPrivacy";
 import ViralCheck from "./pages/ViralCheck";
 import MediaExport from "./pages/MediaExport";
+import AdminPanel from "./pages/AdminPanel";
+import AdminAccessDenied from "./pages/AdminAccessDenied";
+import { getAdminAccess } from "./lib/api";
 
 
 function ProtectedRoute({ children }) {
@@ -28,6 +32,67 @@ function ProtectedRoute({ children }) {
 
   if (!user) {
     return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
+}
+
+function AdminRoute({ children }) {
+  const { user, authLoading } = useAuth();
+  const [accessStatus, setAccessStatus] = useState("checking");
+
+  useEffect(() => {
+    let active = true;
+
+    if (authLoading) {
+      return () => {
+        active = false;
+      };
+    }
+
+    // Not logged in = admin page should look unavailable.
+    if (!user) {
+      setAccessStatus("denied");
+
+      return () => {
+        active = false;
+      };
+    }
+
+    setAccessStatus("checking");
+
+    getAdminAccess()
+      .then(() => {
+        if (active) {
+          setAccessStatus("allowed");
+        }
+      })
+      .catch(() => {
+        // Backend returns 401/403 for non-admin users.
+        // Frontend intentionally shows the normal 404 page.
+        if (active) {
+          setAccessStatus("denied");
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [authLoading, user?.uid]);
+
+  if (authLoading || accessStatus === "checking") {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#050711] px-4 text-white">
+        <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 text-sm text-zinc-300 shadow-xl shadow-black/20">
+          <span className="h-5 w-5 animate-spin rounded-full border-2 border-cyan-300 border-t-transparent" />
+          Checking admin access...
+        </div>
+      </main>
+    );
+  }
+
+  if (accessStatus !== "allowed") {
+    return <AdminAccessDenied />;
   }
 
   return children;
@@ -157,6 +222,15 @@ function App() {
             <ProtectedRoute>
               <MediaExport />
             </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <AdminPanel />
+            </AdminRoute>
           }
         />
 

@@ -25,6 +25,10 @@ async function requireFirebaseAuth(req, res, next) {
       email: decodedToken.email || "",
       name: decodedToken.name || "",
       picture: decodedToken.picture || "",
+      isAdmin:
+        decodedToken.admin === true ||
+        decodedToken.role === "admin" ||
+        decodedToken.role === "owner",
     };
 
     next();
